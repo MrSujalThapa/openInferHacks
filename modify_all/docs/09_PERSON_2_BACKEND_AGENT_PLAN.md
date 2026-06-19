@@ -14,43 +14,64 @@ First, read these docs:
 * `docs/07_10_STEP_PROJECT_PLAN.md`
 * `docs/09_PERSON_2_BACKEND_AGENT_PLAN.md`
 * `docs/11_GIT_WORKFLOW_AND_INTEGRATION.md`
+* `docs/12_DEMO_SCRIPT_AND_ACCEPTANCE.md`
 
 Your ownership:
 
 * Node/Express TypeScript backend
-* MongoDB connection and collections
-* API contracts
-* OpenInfer-compatible client
+* MongoDB connection and repository layer
+* API routes/contracts
+* OpenInfer-compatible inference client
 * LangGraphJS Section Edit Agent
 * patch validator
 * agent trace logging
-* customizations/groups/style memory endpoints
+* groups/customizations/style memory persistence
+* backend support for demo/debug endpoints
 
 Do not build:
 
 * Chrome extension content script
-* lasso/grouping/drag-resize engine
+* lasso selection engine
+* grouping engine internals
+* drag/resize engine internals
 * polished Genie panel UI
-* fallback demo page
+* selected group visual polish
+* fallback demo page UI
 
 Before coding, inspect the repo and summarize:
 
-1. Existing backend/shared structure.
-2. API endpoints you need to implement.
-3. Shared types you need to use.
-4. Files you should own.
-5. Files you must avoid.
+1. Existing backend/server structure.
+2. Existing API routes, if any.
+3. Existing MongoDB connection/repositories, if any.
+4. Existing OpenInfer client, if any.
+5. Existing LangGraph/agent files, if any.
+6. Shared contracts you need to use.
+7. Files you should own.
+8. Files you must avoid.
+9. Whether milestone 1 already exists partially or fully.
 
-Then implement only the first milestone from `09_PERSON_2_BACKEND_AGENT_PLAN.md`: backend skeleton + health endpoint + MongoDB connection bootstrap + environment example. Do not implement the full agent yet.
+Then implement only the first milestone from `docs/09_PERSON_2_BACKEND_AGENT_PLAN.md`: backend skeleton + health endpoint + MongoDB connection bootstrap + environment example.
+
+Important:
+
+* If the backend skeleton already exists, refine or fix it instead of creating duplicate server files.
+* The server should run locally without real MongoDB/OpenInfer if env vars are missing, using safe mock/fallback behavior only where the docs allow.
+* Do not implement the full LangGraph agent yet unless milestone 1 explicitly requires it.
+* Do not change extension behavior or UI components.
 
 Rules:
 
 * Use TypeScript.
-* Keep API responses aligned with `03_API_CONTRACTS.md`.
-* Keep data models aligned with `04_MONGODB_DATA_MODELS.md`.
-* Do not invent frontend behavior.
-* Do not implement fake global chatbot behavior.
-* At the end, provide changed files, how to test, and the exact git commit message.
+* Keep API responses aligned with `docs/03_API_CONTRACTS.md`.
+* Keep data models aligned with `docs/04_MONGODB_DATA_MODELS.md`.
+* Reuse shared contracts/types from `docs/02_SHARED_CONTRACTS.md` or existing shared files.
+* Do not create a global chatbot endpoint. The agent must remain section-scoped.
+* At the end, provide:
+
+  * changed files
+  * how to test
+  * risks or integration notes
+  * exact git commit message
 
 
 ## Ownership

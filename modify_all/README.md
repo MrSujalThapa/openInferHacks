@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Genie MVP
 
-## Getting Started
+Figma-style edit mode for live websites — Chrome extension + TypeScript backend powered by OpenInfer.
 
-First, run the development server:
+## Structure
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+extension/   Chrome Manifest V3 extension
+server/      Express + MongoDB + LangGraphJS agent
+shared/      Shared TypeScript contracts
+demo-page/   LinkedIn-style fallback demo page
+docs/        PRD and specs
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Quick start
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Install dependencies
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+```
 
-## Learn More
+### 2. Configure environment
 
-To learn more about Next.js, take a look at the following resources:
+Copy `.env.example` to `server/.env` and set:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `MONGODB_URI` — MongoDB connection (optional; server runs without it)
+- `OPENINFER_BASE_URL`, `OPENINFER_API_KEY`, `OPENINFER_MODEL` — OpenInfer (optional; mock mode when unset)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Start backend
 
-## Deploy on Vercel
+```bash
+npm run dev:server
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- API: http://localhost:4000/api/health
+- Demo page: http://localhost:4000/demo
+- Agent traces: http://localhost:4000/debug
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. Build & load extension
+
+```bash
+npm run build:extension
+```
+
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. **Load unpacked** → select `extension/dist`
+
+### 5. Demo flow
+
+1. Open http://localhost:4000/demo (or LinkedIn)
+2. Click the Genie extension → **Enter Edit Mode**
+3. Lasso a section (e.g. LinkedIn News sidebar)
+4. **Double-click** the selection to open Genie
+5. Use quick actions or type a prompt → **Preview** → **Save**
+6. Refresh the page — customizations reapply via textSignature + bbox
+
+## Product rules
+
+- No auth (`userId = "demo-user"`)
+- Agent appears only on double-click of a selected group
+- Manual lasso, drag, resize work without AI
+- Agent returns structured `PatchOperation` JSON only — no arbitrary JS
+
+## API
+
+See [docs/03_API_CONTRACTS.md](docs/03_API_CONTRACTS.md).
