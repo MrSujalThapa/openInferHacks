@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Genie",
+  "description": "Minimal edit-mode shell for the Genie extension.",
+  "version": "0.1.0",
+  "permissions": ["activeTab", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Genie",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/extension/src/content/index.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
