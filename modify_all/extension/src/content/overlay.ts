@@ -4,20 +4,33 @@ import { GENIE_ATTR } from "./grouping";
 export type OverlayCallbacks = {
   onLassoComplete: (points: Point[]) => void;
   onBackgroundClick: () => void;
-  onGroupDoubleClick: () => void;
+  onGroupDoubleClick: (groupId: string) => void;
+};
+
+export type SelectionDisplay = {
+  groupId: string;
+  rect: Rect;
+  label?: string;
+  primary: boolean;
+};
+
+export type SelectionInteractionCallbacks = {
+  onResizeHandle: (groupId: string, corner: string, event: PointerEvent) => void;
+  onSelectionDragStart: (groupId: string, event: PointerEvent) => void;
 };
 
 export class Overlay {
   root: HTMLDivElement;
   svg: SVGSVGElement;
   hoverBox: HTMLDivElement;
-  selectionBox: HTMLDivElement;
   labelTag: HTMLDivElement;
   sizeLabel: HTMLDivElement;
 
   private lassoPath: SVGPathElement;
-  private handles: HTMLDivElement[] = [];
+  private selectionBoxes = new Map<string, HTMLDivElement>();
+  private selectionHandles = new Map<string, HTMLDivElement[]>();
   private callbacks: OverlayCallbacks;
+  private interactionCallbacks: SelectionInteractionCallbacks | null = null;
   private readonly onWindowResize = (): void => this.resizeSvg();
 
   constructor(callbacks: OverlayCallbacks) {
@@ -40,14 +53,6 @@ export class Overlay {
     this.hoverBox.className = "genie-hover-box";
     this.hoverBox.setAttribute(GENIE_ATTR, "hover");
 
-    this.selectionBox = document.createElement("div");
-    this.selectionBox.className = "genie-selection-box";
-    this.selectionBox.setAttribute(GENIE_ATTR, "selection");
-    this.selectionBox.addEventListener("dblclick", (event) => {
-      event.stopPropagation();
-      this.callbacks.onGroupDoubleClick();
-    });
-
     this.labelTag = document.createElement("div");
     this.labelTag.className = "genie-label-tag";
     this.labelTag.setAttribute(GENIE_ATTR, "label");
@@ -56,7 +61,7 @@ export class Overlay {
     this.sizeLabel.className = "genie-size-label";
     this.sizeLabel.setAttribute(GENIE_ATTR, "size");
 
-    this.root.append(this.svg, this.hoverBox, this.selectionBox, this.labelTag, this.sizeLabel);
+    this.root.append(this.svg, this.hoverBox, this.labelTag, this.sizeLabel);
 
     this.root.addEventListener("click", (event) => {
       if (event.target === this.root || event.target === this.svg) {
@@ -121,50 +126,118 @@ export class Overlay {
     this.lassoPath.setAttribute("d", "");
   }
 
-  showSelection(rect: Rect, label?: string): void {
-    this.selectionBox.style.display = "block";
-    this.updateSelectionRect(rect);
+  syncSelections(
+    selections: SelectionDisplay[],
+    interactionCallbacks: SelectionInteractionCallbacks,
+  ): void {
+    this.interactionCallbacks = interactionCallbacks;
+    const activeIds = new Set(selections.map((s) => s.groupId));
 
-    this.labelTag.style.display = label ? "block" : "none";
-
-    if (label) {
-      this.labelTag.textContent = label;
-      this.labelTag.style.transform = `translate(${rect.x - window.scrollX}px, ${
-        rect.y - window.scrollY - 28
-      }px)`;
+    for (const [groupId, box] of this.selectionBoxes) {
+      if (!activeIds.has(groupId)) {
+        this.clearHandles(groupId);
+        box.remove();
+        this.selectionBoxes.delete(groupId);
+      }
     }
 
-    this.sizeLabel.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    this.sizeLabel.style.display = "block";
-    this.sizeLabel.style.transform = `translate(${
-      rect.x - window.scrollX + rect.width / 2 - 40
-    }px, ${rect.y - window.scrollY + rect.height + 8}px)`;
+    const primary = selections.find((s) => s.primary) ?? selections[0];
+
+    for (const sel of selections) {
+      let box = this.selectionBoxes.get(sel.groupId);
+      if (!box) {
+        box = document.createElement("div");
+        box.className = "genie-selection-box";
+        box.setAttribute(GENIE_ATTR, "selection");
+        box.dataset.genieGroupId = sel.groupId;
+
+        box.addEventListener("dblclick", (event) => {
+          event.stopPropagation();
+          this.callbacks.onGroupDoubleClick(sel.groupId);
+        });
+
+        box.addEventListener("pointerdown", (event) => {
+          if ((event.target as Element).closest(".genie-handle")) return;
+          event.stopPropagation();
+          this.interactionCallbacks?.onSelectionDragStart(sel.groupId, event);
+        });
+
+        this.root.appendChild(box);
+        this.selectionBoxes.set(sel.groupId, box);
+      }
+
+      box.classList.toggle("is-primary", sel.primary);
+      box.classList.toggle("is-secondary", !sel.primary);
+      this.updateBoxRect(box, sel.rect);
+
+      if (sel.primary) {
+        this.renderHandles(sel.groupId, box);
+        if (sel.label) {
+          this.labelTag.style.display = "block";
+          this.labelTag.textContent = sel.label;
+          this.labelTag.style.transform = `translate(${sel.rect.x - window.scrollX}px, ${
+            sel.rect.y - window.scrollY - 28
+          }px)`;
+        } else {
+          this.labelTag.style.display = "none";
+        }
+
+        this.sizeLabel.textContent = `${Math.round(sel.rect.width)} × ${Math.round(sel.rect.height)}`;
+        this.sizeLabel.style.display = "block";
+        this.sizeLabel.style.transform = `translate(${
+          sel.rect.x - window.scrollX + sel.rect.width / 2 - 40
+        }px, ${sel.rect.y - window.scrollY + sel.rect.height + 8}px)`;
+      }
+    }
+
+    if (!primary) {
+      this.labelTag.style.display = "none";
+      this.sizeLabel.style.display = "none";
+    }
   }
 
-  updateSelectionRect(rect: Rect): void {
-    this.selectionBox.style.transform = `translate(${rect.x - window.scrollX}px, ${
-      rect.y - window.scrollY
-    }px)`;
-    this.selectionBox.style.width = `${rect.width}px`;
-    this.selectionBox.style.height = `${rect.height}px`;
+  updateSelectionRect(groupId: string, rect: Rect): void {
+    const box = this.selectionBoxes.get(groupId);
+    if (!box) return;
 
-    this.sizeLabel.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    this.sizeLabel.style.transform = `translate(${
-      rect.x - window.scrollX + rect.width / 2 - 40
-    }px, ${rect.y - window.scrollY + rect.height + 8}px)`;
+    this.updateBoxRect(box, rect);
+
+    if (box.classList.contains("is-primary")) {
+      this.sizeLabel.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+      this.sizeLabel.style.transform = `translate(${
+        rect.x - window.scrollX + rect.width / 2 - 40
+      }px, ${rect.y - window.scrollY + rect.height + 8}px)`;
+    }
+  }
+
+  hideAllSelections(): void {
+    for (const groupId of this.selectionBoxes.keys()) {
+      this.clearHandles(groupId);
+    }
+    for (const box of this.selectionBoxes.values()) {
+      box.remove();
+    }
+    this.selectionBoxes.clear();
+    this.labelTag.style.display = "none";
+    this.sizeLabel.style.display = "none";
   }
 
   hideSelection(): void {
-    this.selectionBox.style.display = "none";
-    this.labelTag.style.display = "none";
-    this.sizeLabel.style.display = "none";
-    this.clearHandles();
+    this.hideAllSelections();
   }
 
-  renderHandles(onHandleDown: (corner: string, event: PointerEvent) => void): void {
-    this.clearHandles();
+  private updateBoxRect(box: HTMLDivElement, rect: Rect): void {
+    box.style.display = "block";
+    box.style.transform = `translate(${rect.x - window.scrollX}px, ${rect.y - window.scrollY}px)`;
+    box.style.width = `${rect.width}px`;
+    box.style.height = `${rect.height}px`;
+  }
+
+  private renderHandles(groupId: string, box: HTMLDivElement): void {
+    this.clearHandles(groupId);
 
     const corners = ["nw", "ne", "sw", "se"];
+    const handles: HTMLDivElement[] = [];
 
     for (const corner of corners) {
       const handle = document.createElement("div");
@@ -174,20 +247,24 @@ export class Overlay {
 
       handle.addEventListener("pointerdown", (event) => {
         event.stopPropagation();
-        onHandleDown(corner, event);
+        this.interactionCallbacks?.onResizeHandle(groupId, corner, event);
       });
 
-      this.selectionBox.appendChild(handle);
-      this.handles.push(handle);
+      box.appendChild(handle);
+      handles.push(handle);
     }
+
+    this.selectionHandles.set(groupId, handles);
   }
 
-  clearHandles(): void {
-    for (const handle of this.handles) {
+  private clearHandles(groupId: string): void {
+    const handles = this.selectionHandles.get(groupId);
+    if (!handles) return;
+
+    for (const handle of handles) {
       handle.remove();
     }
-
-    this.handles = [];
+    this.selectionHandles.delete(groupId);
   }
 }
 

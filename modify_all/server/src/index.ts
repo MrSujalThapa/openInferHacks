@@ -3,8 +3,8 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config.js";
-import { connectMongo } from "./db/mongo.js";
-import { ensureIndexes } from "./db/repositories.js";
+import { connectMongo, isMongoConnected } from "./db/mongo.js";
+import { ensureIndexes, seedStyleMemory } from "./db/repositories.js";
 import { customizationsRouter } from "./routes/customizations.js";
 import { healthRouter } from "./routes/health.js";
 import { openInferRouter } from "./routes/openinfer.js";
@@ -95,15 +95,26 @@ app.use((_request, response) => {
 });
 
 async function startServer(): Promise<void> {
+  const mongoUri = config.mongodbUri;
+  const redactedUri = mongoUri ? mongoUri.replace(/\/\/([^@/]+@)?/, "//***@") : "(not set)";
+
   try {
     await connectMongo(config.mongodbUri, config.mongodbDb);
 
     if (config.mongodbUri) {
       await ensureIndexes();
+      await seedStyleMemory();
     }
   } catch (error) {
     console.warn("MongoDB bootstrap failed; health endpoint will report the error.", error);
   }
+
+  console.log("[genie] config", {
+    port: config.port,
+    mongodbUri: redactedUri,
+    mongodbDb: config.mongodbDb,
+    mongoConnected: isMongoConnected(),
+  });
 
   app.listen(config.port, () => {
     console.log(`Genie backend listening on http://localhost:${config.port}`);

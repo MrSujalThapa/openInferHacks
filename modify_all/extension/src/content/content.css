@@ -3,7 +3,7 @@
   inset: 0;
   z-index: 2147483646;
   pointer-events: auto;
-  cursor: crosshair;
+  cursor: default;
 }
 
 .genie-lasso-svg {
@@ -35,6 +35,16 @@
   pointer-events: auto;
   cursor: move;
   border-radius: 2px;
+}
+
+.genie-selection-box.is-secondary {
+  border: 2px dashed #38bdf8;
+  box-shadow: none;
+  cursor: move;
+}
+
+.genie-overlay-root.is-lasso-mode {
+  cursor: crosshair;
 }
 
 .genie-label-tag {

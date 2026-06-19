@@ -30,6 +30,21 @@ export async function connectMongo(uri: string | undefined, dbName: string): Pro
   }
 }
 
+export function isMongoConnected(): boolean {
+  return status === "connected" && db !== undefined;
+}
+
+export function tryGetDb(): Db | null {
+  return isMongoConnected() ? db! : null;
+}
+
+export function requireDb(): Db {
+  if (!isMongoConnected() || !db) {
+    throw new Error("MongoDB is not connected");
+  }
+  return db;
+}
+
 export function getDb(): Db {
   if (!db || status !== "connected") {
     throw new Error("MongoDB is not connected");

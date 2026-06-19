@@ -18,5 +18,9 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export function getPageContext(): { domain: string; path: string } {
   const { hostname, pathname } = window.location;
-  return { domain: hostname, path: pathname || "/" };
+  let path = pathname || "/";
+  if (path.length > 1 && path.endsWith("/")) {
+    path = path.slice(0, -1);
+  }
+  return { domain: hostname, path };
 }

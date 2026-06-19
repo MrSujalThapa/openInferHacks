@@ -1,4 +1,4 @@
-import type { EditableGroup, PatchOperation } from "../../../shared/contracts";
+import type { EditableGroup, PatchOperation, Point } from "../../../shared/contracts";
 import { DEMO_USER_ID } from "../../../shared/contracts";
 import { apiPost, getPageContext } from "./api";
 import {
@@ -14,20 +14,29 @@ import {
   collectElementsFromLasso,
   createGroupId,
   findBestGroupContainer,
+  getGroupSelectionRect,
   getVisibleRect,
   isGenieElement,
+  logGroupSelection,
+  pickContainerAtPoint,
+  polygonBounds,
   summarizeElement,
 } from "./grouping";
 import { LassoController, Overlay } from "./overlay";
 import {
   applyOperations,
+  applyVisualLayout,
   buildOperationsFromManualEdit,
+  ensureLayoutBase,
   getElementTransform,
+  normalizeOperationsForGroup,
+  parseElementLayout,
+  type ManualEditHint,
 } from "./patchEngine";
 import {
+  ensureReapplyObserver,
   loadAndApplyCustomizations,
   saveCustomization,
-  setupReapplyObserver,
 } from "./persistence";
 import { GeniePanel } from "./ui/geniePanel";
 
@@ -40,17 +49,34 @@ export type EditModeState =
   | "resizing"
   | "agent-open";
 
+type SelectionEntry = {
+  group: EditableGroup;
+  element: HTMLElement;
+  operations: PatchOperation[];
+  lastManualHint: ManualEditHint | null;
+};
+
+type DragSnapshot = {
+  translate: { x: number; y: number };
+  rect: EditableGroup["shape"]["rect"];
+  layout: ReturnType<typeof parseElementLayout>;
+};
+
+const CLICK_DRAG_THRESHOLD = 8;
+
 class EditModeController {
   state: EditModeState = "off";
 
   private overlay: Overlay | null = null;
   private lasso = new LassoController();
   private panel: GeniePanel | null = null;
-  private selectedGroup: EditableGroup | null = null;
-  private targetElement: HTMLElement | null = null;
-  private operations: PatchOperation[] = [];
+  private selections: SelectionEntry[] = [];
+  private primaryIndex = 0;
   private dragState = createDragState();
-  private observer: MutationObserver | null = null;
+  private pointerDownClient: { x: number; y: number } | null = null;
+  private dragSnapshots: Map<string, DragSnapshot> = new Map();
+  private resizeSnapshots: Map<string, DragSnapshot> = new Map();
+  private activeDragGroupId: string | null = null;
 
   async enter(): Promise<void> {
     if (this.state !== "off") return;
@@ -60,7 +86,10 @@ class EditModeController {
     this.overlay = new Overlay({
       onLassoComplete: (points) => this.onLassoComplete(points),
       onBackgroundClick: () => this.closePanel(),
-      onGroupDoubleClick: () => this.openAgentPanel(),
+      onGroupDoubleClick: (groupId) => {
+        this.setPrimaryByGroupId(groupId);
+        this.openAgentPanel();
+      },
     });
 
     this.overlay.mount();
@@ -79,7 +108,7 @@ class EditModeController {
     this.state = "hovering";
 
     await loadAndApplyCustomizations();
-    this.observer = setupReapplyObserver();
+    ensureReapplyObserver();
   }
 
   exit(): void {
@@ -89,29 +118,40 @@ class EditModeController {
 
     this.panel?.unmount();
     this.overlay?.unmount();
-    this.observer?.disconnect();
 
-    this.selectedGroup = null;
-    this.targetElement = null;
-    this.operations = [];
+    this.selections = [];
+    this.primaryIndex = 0;
+    this.dragSnapshots.clear();
+    this.resizeSnapshots.clear();
+    this.activeDragGroupId = null;
+    this.pointerDownClient = null;
     this.overlay = null;
     this.panel = null;
-    this.observer = null;
     this.state = "off";
+  }
+
+  private getPrimary(): SelectionEntry | null {
+    return this.selections[this.primaryIndex] ?? null;
+  }
+
+  private findSelection(groupId: string): SelectionEntry | undefined {
+    return this.selections.find((s) => s.group.groupId === groupId);
   }
 
   private bindEvents(): void {
     document.addEventListener("mousemove", this.onMouseMove);
     document.addEventListener("pointerdown", this.onPointerDown);
     document.addEventListener("pointermove", this.onPointerMove);
-    document.addEventListener("pointerup", this.onPointerUp);
+    window.addEventListener("pointerup", this.onPointerUp, true);
+    window.addEventListener("pointercancel", this.onPointerUp, true);
   }
 
   private unbindEvents(): void {
     document.removeEventListener("mousemove", this.onMouseMove);
     document.removeEventListener("pointerdown", this.onPointerDown);
     document.removeEventListener("pointermove", this.onPointerMove);
-    document.removeEventListener("pointerup", this.onPointerUp);
+    window.removeEventListener("pointerup", this.onPointerUp, true);
+    window.removeEventListener("pointercancel", this.onPointerUp, true);
   }
 
   private onMouseMove = (event: MouseEvent): void => {
@@ -141,7 +181,7 @@ class EditModeController {
 
     if (rect) {
       this.overlay?.showHover(rect);
-      this.state = "hovering";
+      this.state = this.selections.length > 0 ? "group-selected" : "hovering";
     }
   };
 
@@ -150,53 +190,152 @@ class EditModeController {
 
     const target = event.target as Element;
 
-    if (!target.closest(".genie-overlay-root") && !target.closest(".genie-panel")) {
-      return;
-    }
-
-    if (target.closest(".genie-selection-box") && this.selectedGroup) {
-      if (target.closest(".genie-handle")) return;
-
-      const rect = this.selectedGroup.shape.rect;
-      const translate = this.targetElement
-        ? getElementTransform(this.targetElement)
-        : { x: 0, y: 0 };
-
-      startDrag(this.dragState, event, rect, translate);
-      this.state = "dragging";
-      target.setPointerCapture?.(event.pointerId);
-      return;
-    }
-
-    if (this.lasso.isActive() || this.state === "agent-open") return;
     if (target.closest(".genie-panel")) return;
+    if (target.closest(".genie-selection-box")) return;
+    if (this.state === "agent-open") return;
+    if (!target.closest(".genie-overlay-root")) return;
 
+    this.pointerDownClient = { x: event.clientX, y: event.clientY };
+    this.overlay.root.classList.add("is-lasso-mode");
     this.lasso.start(event.clientX, event.clientY);
     this.state = "selecting";
-    this.overlay.hideSelection();
     this.closePanel();
   };
+
+  private onSelectionDragStart = (groupId: string, event: PointerEvent): void => {
+    if (!this.overlay) return;
+
+    this.setPrimaryByGroupId(groupId);
+    const entry = this.findSelection(groupId);
+    if (!entry) return;
+
+    this.activeDragGroupId = groupId;
+    this.captureDragSnapshots();
+
+    const rect = entry.group.shape.rect;
+    const translate = getElementTransform(entry.element);
+
+    startDrag(this.dragState, event, rect, translate);
+    this.state = "dragging";
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+  };
+
+  private onResizeHandle = (groupId: string, corner: string, event: PointerEvent): void => {
+    const entry = this.findSelection(groupId);
+    if (!entry) return;
+
+    this.setPrimaryByGroupId(groupId);
+    this.activeDragGroupId = groupId;
+    this.captureResizeSnapshots();
+
+    startResize(this.dragState, corner, event, entry.group.shape.rect);
+    this.state = "resizing";
+    (event.target as HTMLElement).setPointerCapture(event.pointerId);
+  };
+
+  private captureDragSnapshots(): void {
+    this.dragSnapshots.clear();
+    for (const entry of this.selections) {
+      this.dragSnapshots.set(entry.group.groupId, {
+        translate: getElementTransform(entry.element),
+        rect: { ...entry.group.shape.rect },
+        layout: parseElementLayout(entry.element),
+      });
+    }
+  }
+
+  private captureResizeSnapshots(): void {
+    this.resizeSnapshots.clear();
+    for (const entry of this.selections) {
+      ensureLayoutBase(entry.element);
+      this.resizeSnapshots.set(entry.group.groupId, {
+        translate: getElementTransform(entry.element),
+        rect: { ...entry.group.shape.rect },
+        layout: parseElementLayout(entry.element),
+      });
+    }
+  }
 
   private onPointerMove = (event: PointerEvent): void => {
     if (!this.overlay) return;
 
-    if (this.dragState.dragging && this.selectedGroup && this.targetElement) {
+    if (this.dragState.dragging && this.activeDragGroupId) {
       const { translateX, translateY, rect } = updateDrag(this.dragState, event);
+      const dx = translateX - this.dragState.startTranslate.x;
+      const dy = translateY - this.dragState.startTranslate.y;
 
-      this.targetElement.style.transform = `translate(${translateX}px, ${translateY}px)`;
-      this.selectedGroup.shape.rect = rect;
-      this.overlay.updateSelectionRect(rect);
+      for (const entry of this.selections) {
+        const snap = this.dragSnapshots.get(entry.group.groupId);
+        if (!snap) continue;
+
+        const newTranslateX = snap.translate.x + dx;
+        const newTranslateY = snap.translate.y + dy;
+        const newRect = {
+          x: snap.rect.x + dx,
+          y: snap.rect.y + dy,
+          width: snap.rect.width,
+          height: snap.rect.height,
+        };
+
+        applyVisualLayout(entry.element, {
+          translateX: newTranslateX,
+          translateY: newTranslateY,
+          visualWidth: snap.layout.visualWidth,
+          visualHeight: snap.layout.visualHeight,
+        });
+
+        entry.group.shape.rect = newRect;
+        this.overlay.updateSelectionRect(entry.group.groupId, newRect);
+      }
+
       return;
     }
 
-    if (this.dragState.resizing && this.selectedGroup && this.targetElement) {
-      const rect = updateResize(this.dragState, event);
+    if (this.dragState.resizing && this.activeDragGroupId) {
+      const primaryRect = updateResize(this.dragState, event);
+      const scaleX = primaryRect.width / this.dragState.startRect.width;
+      const scaleY = primaryRect.height / this.dragState.startRect.height;
 
-      this.selectedGroup.shape.rect = rect;
-      this.targetElement.style.width = `${rect.width}px`;
-      this.targetElement.style.height = `${rect.height}px`;
-      this.targetElement.style.overflow = "hidden";
-      this.overlay.updateSelectionRect(rect);
+      for (const entry of this.selections) {
+        const snap = this.resizeSnapshots.get(entry.group.groupId);
+        if (!snap) continue;
+
+        const visualWidth = Math.max(40, snap.layout.visualWidth * scaleX);
+        const visualHeight = Math.max(40, snap.layout.visualHeight * scaleY);
+
+        applyVisualLayout(entry.element, {
+          translateX: snap.translate.x,
+          translateY: snap.translate.y,
+          visualWidth,
+          visualHeight,
+        });
+
+        let newX = snap.rect.x;
+        let newY = snap.rect.y;
+
+        if (entry.group.groupId === this.activeDragGroupId) {
+          newX = primaryRect.x;
+          newY = primaryRect.y;
+        } else {
+          if (this.dragState.corner.includes("w")) {
+            newX = snap.rect.x + (snap.layout.visualWidth - visualWidth);
+          }
+          if (this.dragState.corner.includes("n")) {
+            newY = snap.rect.y + (snap.layout.visualHeight - visualHeight);
+          }
+        }
+
+        const newRect = {
+          x: newX,
+          y: newY,
+          width: visualWidth,
+          height: visualHeight,
+        };
+
+        entry.group.shape.rect = newRect;
+        this.overlay.updateSelectionRect(entry.group.groupId, newRect);
+      }
+
       return;
     }
 
@@ -206,17 +345,47 @@ class EditModeController {
     }
   };
 
-  private onPointerUp = (_event: PointerEvent): void => {
+  private onPointerUp = (event: PointerEvent): void => {
     if (this.dragState.dragging || this.dragState.resizing) {
-      endDragResize(this.dragState);
+      const hint = {
+        translate: this.dragState.dragging
+          ? { x: this.dragState.lastTranslate.x, y: this.dragState.lastTranslate.y }
+          : undefined,
+        rect:
+          this.dragState.resizing && this.dragState.lastRect
+            ? {
+                width: this.dragState.lastRect.width,
+                height: this.dragState.lastRect.height,
+              }
+            : undefined,
+      };
 
-      if (this.selectedGroup && this.targetElement) {
-        this.operations = buildOperationsFromManualEdit(
-          this.selectedGroup.groupId,
-          this.targetElement,
-          this.operations,
+      endDragResize(this.dragState);
+      this.activeDragGroupId = null;
+      this.dragSnapshots.clear();
+      this.resizeSnapshots.clear();
+
+      for (const entry of this.selections) {
+        const layout = parseElementLayout(entry.element);
+        const manualHint: ManualEditHint = {
+          translate: { x: layout.translateX, y: layout.translateY },
+          rect: { width: layout.visualWidth, height: layout.visualHeight },
+        };
+        entry.lastManualHint = manualHint;
+        entry.operations = buildOperationsFromManualEdit(
+          entry.group.groupId,
+          entry.element,
+          entry.operations,
+          manualHint,
         );
       }
+
+      console.info("[genie] manual operations updated", {
+        groups: this.selections.map((s) => ({
+          groupId: s.group.groupId,
+          operations: s.operations.map((op) => op.type),
+        })),
+      });
 
       this.state = "group-selected";
       return;
@@ -224,29 +393,85 @@ class EditModeController {
 
     if (this.lasso.isActive()) {
       const points = this.lasso.end();
-
       this.overlay?.clearLasso();
+      this.overlay?.root.classList.remove("is-lasso-mode");
+
+      const down = this.pointerDownClient;
+      this.pointerDownClient = null;
+
+      const dragDist =
+        down
+          ? Math.hypot(event.clientX - down.x, event.clientY - down.y)
+          : CLICK_DRAG_THRESHOLD + 1;
+
+      if (dragDist < CLICK_DRAG_THRESHOLD && down) {
+        const container = pickContainerAtPoint(down.x, down.y);
+        if (container) {
+          void this.selectContainer(container, event.shiftKey);
+        }
+        this.lasso.reset();
+        return;
+      }
 
       if (points.length > 4) {
-        void this.onLassoComplete(points);
+        void this.onLassoComplete(points, event.shiftKey);
       }
 
       this.lasso.reset();
     }
   };
 
-  private async onLassoComplete(points: { x: number; y: number }[]): Promise<void> {
+  private async onLassoComplete(points: Point[], addToSelection = false): Promise<void> {
+    const lassoRect = polygonBounds(points);
     const elements = collectElementsFromLasso(points);
-    const container = findBestGroupContainer(elements);
+    const container = findBestGroupContainer(elements, lassoRect);
 
     if (!container || !(container instanceof HTMLElement)) return;
 
+    const rect = getGroupSelectionRect(container, elements, lassoRect);
+    if (!rect) return;
+
+    logGroupSelection(elements, container, lassoRect, rect);
+
+    await this.createAndAddSelection(container, {
+      addToSelection,
+      shape: { type: "lasso", rect, points },
+      domElements: elements,
+    });
+  }
+
+  private async selectContainer(container: HTMLElement, addToSelection: boolean): Promise<void> {
     const rect = getVisibleRect(container);
     if (!rect) return;
 
+    await this.createAndAddSelection(container, {
+      addToSelection,
+      shape: { type: "rectangle", rect },
+      domElements: [container],
+    });
+  }
+
+  private async createAndAddSelection(
+    container: HTMLElement,
+    options: {
+      addToSelection: boolean;
+      shape: EditableGroup["shape"];
+      domElements: Element[];
+    },
+  ): Promise<void> {
+    if (!options.addToSelection) {
+      this.clearSelections();
+    }
+
+    if (this.selections.some((s) => s.element === container)) {
+      this.setPrimaryByElement(container);
+      this.syncOverlaySelections();
+      return;
+    }
+
     const { domain, path } = getPageContext();
     const groupId = createGroupId();
-    const domSummary = elements
+    const domSummary = options.domElements
       .slice(0, 12)
       .map((element, index) => summarizeElement(element, index))
       .filter(Boolean) as EditableGroup["domSummary"];
@@ -259,11 +484,7 @@ class EditModeController {
       userId: DEMO_USER_ID,
       domain,
       path,
-      shape: {
-        type: "lasso",
-        rect,
-        points,
-      },
+      shape: options.shape,
       target,
       domSummary,
       createdAt: now,
@@ -276,45 +497,74 @@ class EditModeController {
         path,
         group,
       });
-
       group.label = understood.label;
     } catch {
       group.label = target.textSignature?.slice(0, 30) ?? "Section";
     }
 
-    this.selectGroup(group, container);
+    this.addSelection(group, container);
   }
 
-  private selectGroup(group: EditableGroup, element: HTMLElement): void {
-    this.selectedGroup = group;
-    this.targetElement = element;
-
+  private addSelection(group: EditableGroup, element: HTMLElement): void {
+    ensureLayoutBase(element);
     element.setAttribute("data-genie-group", group.groupId);
 
-    this.operations = [];
-
-    this.overlay?.showSelection(group.shape.rect, group.label);
-
-    this.overlay?.renderHandles((corner, event) => {
-      startResize(this.dragState, corner, event, group.shape.rect);
-      this.state = "resizing";
-      (event.target as HTMLElement).setPointerCapture(event.pointerId);
+    this.selections.push({
+      group,
+      element,
+      operations: [],
+      lastManualHint: null,
     });
-
+    this.primaryIndex = this.selections.length - 1;
+    this.syncOverlaySelections();
     this.state = "group-selected";
   }
 
-  private openAgentPanel(): void {
-    if (!this.selectedGroup || !this.overlay || !this.panel) return;
+  private clearSelections(): void {
+    this.selections = [];
+    this.primaryIndex = 0;
+    this.overlay?.hideAllSelections();
+  }
 
-    this.panel.positionBeside(this.selectedGroup.shape.rect, this.selectedGroup.label);
+  private setPrimaryByGroupId(groupId: string): void {
+    const index = this.selections.findIndex((s) => s.group.groupId === groupId);
+    if (index >= 0) this.primaryIndex = index;
+  }
+
+  private setPrimaryByElement(element: HTMLElement): void {
+    const index = this.selections.findIndex((s) => s.element === element);
+    if (index >= 0) this.primaryIndex = index;
+  }
+
+  private syncOverlaySelections(): void {
+    if (!this.overlay) return;
+
+    this.overlay.syncSelections(
+      this.selections.map((entry, index) => ({
+        groupId: entry.group.groupId,
+        rect: entry.group.shape.rect,
+        label: index === this.primaryIndex ? entry.group.label : undefined,
+        primary: index === this.primaryIndex,
+      })),
+      {
+        onResizeHandle: (groupId, corner, event) => this.onResizeHandle(groupId, corner, event),
+        onSelectionDragStart: (groupId, event) => this.onSelectionDragStart(groupId, event),
+      },
+    );
+  }
+
+  private openAgentPanel(): void {
+    const primary = this.getPrimary();
+    if (!primary || !this.overlay || !this.panel) return;
+
+    this.panel.positionBeside(primary.group.shape.rect, primary.group.label);
     this.state = "agent-open";
   }
 
   private closePanel(): void {
     this.panel?.hide();
 
-    if (this.selectedGroup) {
+    if (this.selections.length > 0) {
       this.state = "group-selected";
     } else {
       this.state = "hovering";
@@ -322,7 +572,8 @@ class EditModeController {
   }
 
   private async runAgent(instruction: string): Promise<void> {
-    if (!this.selectedGroup || !this.panel || !this.targetElement) return;
+    const primary = this.getPrimary();
+    if (!primary || !this.panel) return;
 
     if (!instruction) {
       this.panel.showError("Enter an instruction or pick a quick action");
@@ -346,16 +597,15 @@ class EditModeController {
       }>("/api/agent/section-edit", {
         domain,
         path,
-        group: this.selectedGroup,
+        group: primary.group,
         instruction,
       });
 
-      this.operations = result.operations;
+      primary.operations = normalizeOperationsForGroup(primary.group.groupId, result.operations);
+      applyOperations(primary.group.groupId, primary.element, primary.operations);
 
-      applyOperations(this.selectedGroup.groupId, this.targetElement, result.operations);
-
-      this.selectedGroup.label = result.sectionLabel;
-      this.overlay?.showSelection(this.selectedGroup.shape.rect, result.sectionLabel);
+      primary.group.label = result.sectionLabel;
+      this.syncOverlaySelections();
       this.panel.showResult(result);
     } catch (error) {
       this.panel.showError(String(error));
@@ -363,23 +613,54 @@ class EditModeController {
   }
 
   private async saveCurrent(): Promise<void> {
-    if (!this.selectedGroup || !this.panel) return;
+    if (!this.panel || this.selections.length === 0) return;
 
-    const operations =
-      this.targetElement && this.operations.length
-        ? buildOperationsFromManualEdit(
-            this.selectedGroup.groupId,
-            this.targetElement,
-            this.operations,
-          )
-        : this.operations;
+    let savedCount = 0;
 
-    try {
-      await saveCustomization(this.selectedGroup.groupId, this.selectedGroup.target, operations);
-      this.panel.showSaved();
-    } catch (error) {
-      this.panel.showError(String(error));
+    for (const entry of this.selections) {
+      const hint =
+        entry.lastManualHint ??
+        (() => {
+          const layout = parseElementLayout(entry.element);
+          return {
+            translate: { x: layout.translateX, y: layout.translateY },
+            rect: { width: layout.visualWidth, height: layout.visualHeight },
+          };
+        })();
+
+      let operations = buildOperationsFromManualEdit(
+        entry.group.groupId,
+        entry.element,
+        entry.operations,
+        hint,
+      );
+
+      operations = normalizeOperationsForGroup(entry.group.groupId, operations);
+      entry.operations = operations;
+
+      const rect = getVisibleRect(entry.element);
+      if (rect) {
+        entry.group.target = { ...entry.group.target, bbox: rect };
+      }
+
+      if (operations.length === 0) continue;
+
+      console.info("[genie] saving customization", {
+        groupId: entry.group.groupId,
+        operationTypes: operations.map((op) => op.type),
+        operationCount: operations.length,
+      });
+
+      await saveCustomization(entry.group.groupId, entry.group.target, operations);
+      savedCount += 1;
     }
+
+    if (savedCount === 0) {
+      this.panel.showError("No changes to save — drag or resize the group, or run Preview first");
+      return;
+    }
+
+    this.panel.showSaved();
   }
 }
 
@@ -402,7 +683,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  // Backward compatibility with Person 1 milestone 2B message names.
   if (message.type === "GENIE_SET_EDIT_MODE") {
     const enabled = Boolean(message.enabled);
 

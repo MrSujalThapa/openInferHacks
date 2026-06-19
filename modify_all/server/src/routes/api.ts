@@ -1,14 +1,12 @@
 import express from "express";
-import type { EditableGroup, PatchOperation } from "../../../shared/contracts.js";
+import type { EditableGroup } from "../../../shared/contracts.js";
 import { understandGroup, runSectionEditAgent } from "../agent/sectionEditAgent.js";
-import { isMongoConnected } from "../mongo.js";
+import { isMongoConnected } from "../db/mongo.js";
 import {
   addStyleMemory,
   getAgentRuns,
-  getCustomizations,
   getStyleMemory,
-  saveCustomization,
-} from "../repos/index.js";
+} from "../db/repositories.js";
 
 export const apiRouter = express.Router();
 
@@ -39,6 +37,13 @@ apiRouter.post("/agent/section-edit", async (req, res) => {
       instruction: string;
     };
 
+    console.log("[api] POST /api/agent/section-edit", {
+      domain,
+      path,
+      groupId: group?.groupId,
+      instruction: instruction?.slice(0, 80),
+    });
+
     const now = new Date().toISOString();
     const fullGroup: EditableGroup = {
       ...group,
@@ -50,43 +55,13 @@ apiRouter.post("/agent/section-edit", async (req, res) => {
     };
 
     const result = await runSectionEditAgent({ domain, path, group: fullGroup, instruction });
+    console.log("[api] POST /api/agent/section-edit completed", {
+      traceId: result.traceId,
+      operationCount: result.operations.length,
+    });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-apiRouter.post("/customizations", async (req, res) => {
-  try {
-    const { domain, pathPattern, groupId, target, operations, enabled } = req.body as {
-      domain: string;
-      pathPattern: string;
-      groupId: string;
-      target: EditableGroup["target"];
-      operations: PatchOperation[];
-      enabled: boolean;
-    };
-    const customizationId = await saveCustomization({
-      domain,
-      pathPattern,
-      groupId,
-      target,
-      operations,
-      enabled,
-    });
-    res.json({ ok: true, customizationId });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-apiRouter.get("/customizations", async (req, res) => {
-  try {
-    const domain = String(req.query.domain ?? "");
-    const path = String(req.query.path ?? "");
-    const customizations = await getCustomizations(domain, path);
-    res.json({ customizations });
-  } catch (err) {
+    console.error("[api] POST /api/agent/section-edit failed:", err);
     res.status(500).json({ error: String(err) });
   }
 });
@@ -113,9 +88,11 @@ apiRouter.post("/style-memory", async (req, res) => {
 apiRouter.get("/agent-runs", async (req, res) => {
   try {
     const limit = Number(req.query.limit ?? 10);
+    console.log("[api] GET /api/agent-runs", { limit });
     const runs = await getAgentRuns(limit);
     res.json({ runs });
   } catch (err) {
+    console.error("[api] GET /api/agent-runs failed:", err);
     res.status(500).json({ error: String(err) });
   }
 });

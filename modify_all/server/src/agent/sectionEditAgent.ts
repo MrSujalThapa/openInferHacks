@@ -7,7 +7,7 @@ import type {
 } from "../../../shared/contracts.js";
 import { DEMO_USER_ID } from "../../../shared/contracts.js";
 import { openinfer } from "../openinfer/client.js";
-import { getStyleMemory, saveAgentRun } from "../repos/index.js";
+import { getStyleMemory, saveAgentRun } from "../db/repositories.js";
 import { parsePatchOperations, validatePatchOperations } from "./validator.js";
 
 type SectionUnderstanding = {
