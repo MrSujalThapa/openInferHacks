@@ -1,86 +1,223 @@
-const ROOT_ID = "genie-extension-root";
-const STYLE_ID = "genie-extension-style";
+import type { Point, Rect } from "../../../shared/contracts";
+import { GENIE_ATTR } from "./grouping";
 
-const OVERLAY_MARKUP = `
-  <div class="genie-overlay" data-genie-overlay>
-    <div class="genie-overlay__badge">Genie Edit Mode</div>
-  </div>
-`;
+export type OverlayCallbacks = {
+  onLassoComplete: (points: Point[]) => void;
+  onBackgroundClick: () => void;
+  onGroupDoubleClick: () => void;
+};
 
-function ensureStyleTag(): void {
-  if (document.getElementById(STYLE_ID)) {
-    return;
+export class Overlay {
+  root: HTMLDivElement;
+  svg: SVGSVGElement;
+  hoverBox: HTMLDivElement;
+  selectionBox: HTMLDivElement;
+  labelTag: HTMLDivElement;
+  sizeLabel: HTMLDivElement;
+
+  private lassoPath: SVGPathElement;
+  private handles: HTMLDivElement[] = [];
+  private callbacks: OverlayCallbacks;
+  private readonly onWindowResize = (): void => this.resizeSvg();
+
+  constructor(callbacks: OverlayCallbacks) {
+    this.callbacks = callbacks;
+
+    this.root = document.createElement("div");
+    this.root.setAttribute(GENIE_ATTR, "overlay");
+    this.root.className = "genie-overlay-root";
+
+    this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.svg.classList.add("genie-lasso-svg");
+
+    this.lassoPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    this.lassoPath.setAttribute("fill", "rgba(56, 189, 248, 0.12)");
+    this.lassoPath.setAttribute("stroke", "#38bdf8");
+    this.lassoPath.setAttribute("stroke-width", "2");
+    this.svg.appendChild(this.lassoPath);
+
+    this.hoverBox = document.createElement("div");
+    this.hoverBox.className = "genie-hover-box";
+    this.hoverBox.setAttribute(GENIE_ATTR, "hover");
+
+    this.selectionBox = document.createElement("div");
+    this.selectionBox.className = "genie-selection-box";
+    this.selectionBox.setAttribute(GENIE_ATTR, "selection");
+    this.selectionBox.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      this.callbacks.onGroupDoubleClick();
+    });
+
+    this.labelTag = document.createElement("div");
+    this.labelTag.className = "genie-label-tag";
+    this.labelTag.setAttribute(GENIE_ATTR, "label");
+
+    this.sizeLabel = document.createElement("div");
+    this.sizeLabel.className = "genie-size-label";
+    this.sizeLabel.setAttribute(GENIE_ATTR, "size");
+
+    this.root.append(this.svg, this.hoverBox, this.selectionBox, this.labelTag, this.sizeLabel);
+
+    this.root.addEventListener("click", (event) => {
+      if (event.target === this.root || event.target === this.svg) {
+        this.callbacks.onBackgroundClick();
+      }
+    });
   }
 
-  const style = document.createElement("style");
-  style.id = STYLE_ID;
-  style.textContent = `
-    #${ROOT_ID} {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 2147483647;
-    }
+  mount(): void {
+    document.documentElement.appendChild(this.root);
+    this.resizeSvg();
+    window.addEventListener("resize", this.onWindowResize);
+  }
 
-    #${ROOT_ID}[data-enabled="false"] {
-      display: none;
-    }
+  unmount(): void {
+    window.removeEventListener("resize", this.onWindowResize);
+    this.root.remove();
+  }
 
-    #${ROOT_ID} .genie-overlay {
-      position: absolute;
-      inset: 0;
-      outline: 2px solid rgba(37, 99, 235, 0.45);
-      outline-offset: -2px;
-      background:
-        linear-gradient(rgba(37, 99, 235, 0.06), rgba(37, 99, 235, 0.06)),
-        linear-gradient(90deg, rgba(37, 99, 235, 0.08) 1px, transparent 1px),
-        linear-gradient(rgba(37, 99, 235, 0.08) 1px, transparent 1px);
-      background-size: auto, 24px 24px, 24px 24px;
-    }
+  private resizeSvg(): void {
+    const width = document.documentElement.scrollWidth;
+    const height = document.documentElement.scrollHeight;
 
-    #${ROOT_ID} .genie-overlay__badge {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      border-radius: 999px;
-      padding: 8px 12px;
-      background: rgba(15, 23, 42, 0.9);
-      color: #ffffff;
-      font: 600 12px/1 Arial, sans-serif;
-      letter-spacing: 0.02em;
-      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
-    }
+    this.svg.setAttribute("width", String(width));
+    this.svg.setAttribute("height", String(height));
+    this.svg.style.width = `${width}px`;
+    this.svg.style.height = `${height}px`;
+  }
 
-    body.genie-editing {
-      cursor: crosshair !important;
-    }
-  `;
+  showHover(rect: Rect): void {
+    this.hoverBox.style.display = "block";
+    this.hoverBox.style.transform = `translate(${rect.x - window.scrollX}px, ${
+      rect.y - window.scrollY
+    }px)`;
+    this.hoverBox.style.width = `${rect.width}px`;
+    this.hoverBox.style.height = `${rect.height}px`;
+  }
 
-  document.head.appendChild(style);
-}
+  hideHover(): void {
+    this.hoverBox.style.display = "none";
+  }
 
-export class EditModeOverlay {
-  private readonly root: HTMLDivElement;
-
-  constructor() {
-    ensureStyleTag();
-
-    const existing = document.getElementById(ROOT_ID);
-    if (existing instanceof HTMLDivElement) {
-      this.root = existing;
+  drawLasso(points: Point[]): void {
+    if (points.length < 2) {
+      this.lassoPath.setAttribute("d", "");
       return;
     }
 
-    this.root = document.createElement("div");
-    this.root.id = ROOT_ID;
-    this.root.dataset.enabled = "false";
-    this.root.setAttribute("aria-hidden", "true");
-    this.root.innerHTML = OVERLAY_MARKUP;
-    document.documentElement.appendChild(this.root);
+    const path =
+      points
+        .map((point, index) => {
+          const x = point.x - window.scrollX;
+          const y = point.y - window.scrollY;
+          return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+        })
+        .join(" ") + " Z";
+
+    this.lassoPath.setAttribute("d", path);
   }
 
-  setEnabled(enabled: boolean): void {
-    this.root.dataset.enabled = String(enabled);
-    document.body.classList.toggle("genie-editing", enabled);
+  clearLasso(): void {
+    this.lassoPath.setAttribute("d", "");
+  }
+
+  showSelection(rect: Rect, label?: string): void {
+    this.selectionBox.style.display = "block";
+    this.updateSelectionRect(rect);
+
+    this.labelTag.style.display = label ? "block" : "none";
+
+    if (label) {
+      this.labelTag.textContent = label;
+      this.labelTag.style.transform = `translate(${rect.x - window.scrollX}px, ${
+        rect.y - window.scrollY - 28
+      }px)`;
+    }
+
+    this.sizeLabel.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    this.sizeLabel.style.display = "block";
+    this.sizeLabel.style.transform = `translate(${
+      rect.x - window.scrollX + rect.width / 2 - 40
+    }px, ${rect.y - window.scrollY + rect.height + 8}px)`;
+  }
+
+  updateSelectionRect(rect: Rect): void {
+    this.selectionBox.style.transform = `translate(${rect.x - window.scrollX}px, ${
+      rect.y - window.scrollY
+    }px)`;
+    this.selectionBox.style.width = `${rect.width}px`;
+    this.selectionBox.style.height = `${rect.height}px`;
+
+    this.sizeLabel.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    this.sizeLabel.style.transform = `translate(${
+      rect.x - window.scrollX + rect.width / 2 - 40
+    }px, ${rect.y - window.scrollY + rect.height + 8}px)`;
+  }
+
+  hideSelection(): void {
+    this.selectionBox.style.display = "none";
+    this.labelTag.style.display = "none";
+    this.sizeLabel.style.display = "none";
+    this.clearHandles();
+  }
+
+  renderHandles(onHandleDown: (corner: string, event: PointerEvent) => void): void {
+    this.clearHandles();
+
+    const corners = ["nw", "ne", "sw", "se"];
+
+    for (const corner of corners) {
+      const handle = document.createElement("div");
+      handle.className = `genie-handle genie-handle-${corner}`;
+      handle.setAttribute(GENIE_ATTR, "handle");
+      handle.dataset.corner = corner;
+
+      handle.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+        onHandleDown(corner, event);
+      });
+
+      this.selectionBox.appendChild(handle);
+      this.handles.push(handle);
+    }
+  }
+
+  clearHandles(): void {
+    for (const handle of this.handles) {
+      handle.remove();
+    }
+
+    this.handles = [];
+  }
+}
+
+export class LassoController {
+  private active = false;
+  private points: Point[] = [];
+
+  start(x: number, y: number): void {
+    this.active = true;
+    this.points = [{ x: x + window.scrollX, y: y + window.scrollY }];
+  }
+
+  move(x: number, y: number): Point[] {
+    if (!this.active) return this.points;
+
+    this.points.push({ x: x + window.scrollX, y: y + window.scrollY });
+    return this.points;
+  }
+
+  end(): Point[] {
+    this.active = false;
+    return this.points;
+  }
+
+  isActive(): boolean {
+    return this.active;
+  }
+
+  reset(): void {
+    this.active = false;
+    this.points = [];
   }
 }

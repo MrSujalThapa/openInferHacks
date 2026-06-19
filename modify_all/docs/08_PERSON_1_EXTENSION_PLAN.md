@@ -1,6 +1,5 @@
 # 08 — Person 1 Plan: Extension Interaction Engine
 
-Prompt 0:
 You are Person 1 for the Genie project.
 
 First, read these docs:
@@ -12,45 +11,65 @@ First, read these docs:
 * `docs/07_10_STEP_PROJECT_PLAN.md`
 * `docs/08_PERSON_1_EXTENSION_PLAN.md`
 * `docs/11_GIT_WORKFLOW_AND_INTEGRATION.md`
+* `docs/12_DEMO_SCRIPT_AND_ACCEPTANCE.md`
 
 Your ownership:
 
 * Chrome extension editor engine
-* content script
+* content script behavior
 * edit mode overlay
 * hover/click selection
 * freeform lasso
 * grouping engine
-* drag/resize engine
-* patch preview/apply/reapply
-* persistence client integration using shared API contracts
+* selected group bounding box integration
+* drag/resize engine internals
+* patch preview/apply/reapply engine
+* extension-side persistence client integration using shared API contracts
 
 Do not build:
 
 * backend routes
-* MongoDB logic
+* MongoDB schemas/repos
 * OpenInfer client
 * LangGraph agent internals
-* final polished Genie panel UI
+* polished Genie panel UI
 * fallback demo page
+* trace/debug viewer UI
 
 Before coding, inspect the repo and summarize:
 
-1. Existing folder structure.
-2. Files you should own.
-3. Files you must avoid.
-4. Any missing shared contracts/types you need.
+1. Existing extension structure.
+2. Existing content script/editor files, if any.
+3. Existing lasso/grouping/drag/resize/patch files, if any.
+4. Files you should own.
+5. UI components/events you need from Person 3.
+6. API contracts/endpoints you need from Person 2.
+7. Files you must avoid.
+8. Whether milestone 1 already exists partially or fully.
 
-Then implement only the first milestone from `08_PERSON_1_EXTENSION_PLAN.md`: extension editor skeleton + edit mode toggle + content script wiring. Keep it minimal and integration-friendly.
+Then implement only the first milestone from `docs/08_PERSON_1_EXTENSION_PLAN.md`: extension editor skeleton + edit mode toggle + content script wiring.
+
+Important:
+
+* If an extension skeleton already exists, refine or fix it instead of creating duplicate systems.
+* The extension should support a clear edit mode state.
+* The content script should be wired in a way that later milestones can add hover outlines, lasso, grouping, drag, resize, and patch reapply cleanly.
+* Do not hardcode LinkedIn-specific selectors.
+* Do not implement future milestones early.
 
 Rules:
 
 * Use TypeScript.
-* Reuse shared types from `shared/` if they exist.
-* If shared types are missing, create only minimal types needed and place them where the docs specify.
-* Do not hardcode LinkedIn selectors.
-* Do not implement lasso, drag, resize, or agent UI yet.
-* At the end, provide changed files, how to test, and the exact git commit message.
+* Reuse shared contracts/types from `docs/02_SHARED_CONTRACTS.md` or existing shared files.
+* Keep the implementation modular and integration-friendly.
+* Do not duplicate Person 3’s Genie panel UI.
+* Do not duplicate Person 2’s backend/agent logic.
+* At the end, provide:
+
+  * changed files
+  * how to test
+  * risks or integration notes
+  * exact git commit message
 
 
 ## Ownership

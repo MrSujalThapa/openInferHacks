@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Professional Feed — Genie Demo</title>
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body>
+  <!-- Demo helper: presentation copy only — not wired to the extension -->
+  <aside class="demo-helper" id="demo-helper" aria-label="Genie demo guide">
+    <div class="demo-helper-header">
+      <div class="demo-helper-title">
+        <span class="demo-helper-mark" aria-hidden="true">✦</span>
+        Genie demo flow
+      </div>
+      <button
+        type="button"
+        class="demo-helper-toggle"
+        id="demo-helper-toggle"
+        aria-label="Collapse demo guide"
+        aria-expanded="true"
+      >−</button>
+    </div>
+    <div class="demo-helper-body">
+      <p class="demo-helper-note">
+        Generic professional feed for stable lasso and grouping tests. The extension works on any site — this page is a controlled fallback.
+      </p>
+      <ol class="demo-helper-steps">
+        <li>Enter edit mode from the Genie extension</li>
+        <li>Lasso a section on this page</li>
+        <li>Double-click the selected group</li>
+        <li>Ask Genie to edit this group only</li>
+        <li>Save and refresh to verify persistence</li>
+        <li>View Agent Trace to see OpenInfer + MongoDB</li>
+      </ol>
+      <p class="demo-helper-tip">
+        Suggested target: <strong>Today's News</strong> sidebar on the right — great for dark mode + compact demo.
+      </p>
+      <div class="demo-helper-actions">
+        <a class="demo-helper-btn demo-helper-btn-primary" href="agent-trace.html">Agent Trace →</a>
+        <a class="demo-helper-btn demo-helper-btn-secondary" href="agent-trace-preview.html">Trace preview</a>
+      </div>
+    </div>
+  </aside>
+
+  <header class="site-nav">
+    <div class="site-nav-inner">
+      <div class="site-logo">
+        <span class="site-logo-mark" aria-hidden="true">P</span>
+        ProFeed
+      </div>
+      <input class="site-search" type="search" placeholder="Search" readonly aria-label="Search" />
+      <nav class="site-nav-links" aria-label="Primary">
+        <div class="site-nav-link is-active"><span>⌂</span>Home</div>
+        <div class="site-nav-link"><span>◎</span>Network</div>
+        <div class="site-nav-link"><span>💼</span>Jobs</div>
+        <div class="site-nav-link"><span>💬</span>Messaging</div>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-layout">
+    <aside class="left-rail" aria-label="Left sidebar">
+      <section class="card profile-card" aria-label="Profile card">
+        <div class="profile-cover" aria-hidden="true"></div>
+        <div class="profile-avatar" aria-hidden="true">JD</div>
+        <h2 class="profile-name">Jane Demo</h2>
+        <p class="profile-role">Product Designer · OpenInfer</p>
+        <p class="profile-stat">Profile viewers · 128 this week</p>
+      </section>
+
+      <section class="card saved-card" aria-label="Saved items">
+        <h3 class="saved-title">Saved items</h3>
+        <div class="saved-item">
+          <span class="saved-icon" aria-hidden="true">🔖</span>
+          My items
+        </div>
+        <div class="saved-item">
+          <span class="saved-icon" aria-hidden="true">👥</span>
+          Groups
+        </div>
+        <div class="saved-item">
+          <span class="saved-icon" aria-hidden="true">📅</span>
+          Events
+        </div>
+      </section>
+    </aside>
+
+    <main aria-label="Feed">
+      <section class="card composer-card" aria-label="Start a post">
+        <div class="composer-row">
+          <div class="composer-avatar" aria-hidden="true"></div>
+          <div class="composer-input">Start a post</div>
+        </div>
+        <div class="composer-actions">
+          <div class="composer-action"><span aria-hidden="true">🖼</span> Photo</div>
+          <div class="composer-action"><span aria-hidden="true">▶</span> Video</div>
+          <div class="composer-action"><span aria-hidden="true">📄</span> Document</div>
+          <div class="composer-action"><span aria-hidden="true">📢</span> Event</div>
+        </div>
+      </section>
+
+      <article class="card feed-card" aria-label="Feed post">
+        <div class="feed-header">
+          <div class="feed-avatar" aria-hidden="true"></div>
+          <div class="feed-meta">
+            <h3>Alex Chen</h3>
+            <span>Senior Engineer · 2h · 🌐</span>
+          </div>
+        </div>
+        <p class="feed-body">
+          Excited to share our approach to AI-powered UI customization. What if every webpage felt editable like a design canvas — scoped, reversible, and personal?
+        </p>
+        <div class="feed-media" aria-hidden="true">
+          <span class="feed-media-label">Article preview</span>
+        </div>
+        <div class="feed-engagement">
+          <span>Like</span>
+          <span>Comment</span>
+          <span>Repost</span>
+          <span>Send</span>
+        </div>
+      </article>
+
+      <article class="card feed-card" aria-label="Feed post">
+        <div class="feed-header">
+          <div class="feed-avatar alt" aria-hidden="true"></div>
+          <div class="feed-meta">
+            <h3>Design Systems Weekly</h3>
+            <span>Newsletter · 5h · 🌐</span>
+          </div>
+        </div>
+        <p class="feed-body">
+          Layout personalization is shifting from static themes to section-level control. Teams are experimenting with agent-assisted edits that stay within safe DOM boundaries.
+        </p>
+        <div class="feed-engagement">
+          <span>Like</span>
+          <span>Comment</span>
+          <span>Repost</span>
+          <span>Send</span>
+        </div>
+      </article>
+    </main>
+
+    <aside class="right-rail" aria-label="Right sidebar">
+      <section class="card news-sidebar" id="news-sidebar" aria-label="Today's news">
+        <h2 class="news-header">Today's News</h2>
+        <ul class="news-list">
+          <li class="news-item">
+            <div class="news-tag">Trending · Technology</div>
+            <h4>AI agents reshape frontend tooling</h4>
+            <p>12,405 readers</p>
+          </li>
+          <li class="news-item">
+            <div class="news-tag">1h ago · Industry</div>
+            <h4>OpenInfer hackathon highlights</h4>
+            <p>3,201 readers</p>
+          </li>
+          <li class="news-item">
+            <div class="news-tag">2h ago · Design</div>
+            <h4>Design systems meet live DOM editing</h4>
+            <p>8,912 readers</p>
+          </li>
+          <li class="news-item">
+            <div class="news-tag">3h ago · Product</div>
+            <h4>Personalized layouts without backend changes</h4>
+            <p>5,443 readers</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="card puzzle-card" aria-label="Daily puzzle">
+        <div class="puzzle-header">
+          <div class="puzzle-icon" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div>
+            <div class="puzzle-title">Daily puzzle</div>
+            <p class="puzzle-desc">Quick mental break between meetings</p>
+          </div>
+        </div>
+        <span class="puzzle-cta">Play today’s puzzle →</span>
+      </section>
+    </aside>
+  </div>
+
+  <script src="demo-helper.js"></script>
+</body>
+</html>

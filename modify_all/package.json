@@ -1,13 +1,21 @@
 {
-  "name": "modify_all",
+  "name": "genie-mvp",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "extension"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "build:extension": "tsc -p extension/tsconfig.json",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "npm run dev --workspace=@genie/server",
+    "dev:server": "npm run dev --workspace=@genie/server",
+    "dev:extension": "npm run dev --workspace=@genie/extension",
+    "build": "npm run build --workspace=@genie/extension",
+    "build:extension": "npm run build --workspace=@genie/extension",
+    "build:server": "npm run build --workspace=@genie/server",
+    "start:server": "npm run start --workspace=@genie/server",
+    "demo": "npm run dev --workspace=@genie/server"
   },
   "dependencies": {
     "next": "16.2.9",
