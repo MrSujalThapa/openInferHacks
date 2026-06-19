@@ -14,18 +14,22 @@ export class Overlay {
   selectionBox: HTMLDivElement;
   labelTag: HTMLDivElement;
   sizeLabel: HTMLDivElement;
+
   private lassoPath: SVGPathElement;
   private handles: HTMLDivElement[] = [];
   private callbacks: OverlayCallbacks;
+  private readonly onWindowResize = (): void => this.resizeSvg();
 
   constructor(callbacks: OverlayCallbacks) {
     this.callbacks = callbacks;
+
     this.root = document.createElement("div");
     this.root.setAttribute(GENIE_ATTR, "overlay");
     this.root.className = "genie-overlay-root";
 
     this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     this.svg.classList.add("genie-lasso-svg");
+
     this.lassoPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     this.lassoPath.setAttribute("fill", "rgba(56, 189, 248, 0.12)");
     this.lassoPath.setAttribute("stroke", "#38bdf8");
@@ -39,8 +43,8 @@ export class Overlay {
     this.selectionBox = document.createElement("div");
     this.selectionBox.className = "genie-selection-box";
     this.selectionBox.setAttribute(GENIE_ATTR, "selection");
-    this.selectionBox.addEventListener("dblclick", (e) => {
-      e.stopPropagation();
+    this.selectionBox.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
       this.callbacks.onGroupDoubleClick();
     });
 
@@ -53,8 +57,9 @@ export class Overlay {
     this.sizeLabel.setAttribute(GENIE_ATTR, "size");
 
     this.root.append(this.svg, this.hoverBox, this.selectionBox, this.labelTag, this.sizeLabel);
-    this.root.addEventListener("click", (e) => {
-      if (e.target === this.root || e.target === this.svg) {
+
+    this.root.addEventListener("click", (event) => {
+      if (event.target === this.root || event.target === this.svg) {
         this.callbacks.onBackgroundClick();
       }
     });
@@ -63,25 +68,29 @@ export class Overlay {
   mount(): void {
     document.documentElement.appendChild(this.root);
     this.resizeSvg();
-    window.addEventListener("resize", () => this.resizeSvg());
+    window.addEventListener("resize", this.onWindowResize);
   }
 
   unmount(): void {
+    window.removeEventListener("resize", this.onWindowResize);
     this.root.remove();
   }
 
   private resizeSvg(): void {
-    const w = document.documentElement.scrollWidth;
-    const h = document.documentElement.scrollHeight;
-    this.svg.setAttribute("width", String(w));
-    this.svg.setAttribute("height", String(h));
-    this.svg.style.width = `${w}px`;
-    this.svg.style.height = `${h}px`;
+    const width = document.documentElement.scrollWidth;
+    const height = document.documentElement.scrollHeight;
+
+    this.svg.setAttribute("width", String(width));
+    this.svg.setAttribute("height", String(height));
+    this.svg.style.width = `${width}px`;
+    this.svg.style.height = `${height}px`;
   }
 
   showHover(rect: Rect): void {
     this.hoverBox.style.display = "block";
-    this.hoverBox.style.transform = `translate(${rect.x - window.scrollX}px, ${rect.y - window.scrollY}px)`;
+    this.hoverBox.style.transform = `translate(${rect.x - window.scrollX}px, ${
+      rect.y - window.scrollY
+    }px)`;
     this.hoverBox.style.width = `${rect.width}px`;
     this.hoverBox.style.height = `${rect.height}px`;
   }
@@ -95,15 +104,17 @@ export class Overlay {
       this.lassoPath.setAttribute("d", "");
       return;
     }
-    const d =
+
+    const path =
       points
-        .map((p, i) => {
-          const x = p.x - window.scrollX;
-          const y = p.y - window.scrollY;
-          return `${i === 0 ? "M" : "L"} ${x} ${y}`;
+        .map((point, index) => {
+          const x = point.x - window.scrollX;
+          const y = point.y - window.scrollY;
+          return `${index === 0 ? "M" : "L"} ${x} ${y}`;
         })
         .join(" ") + " Z";
-    this.lassoPath.setAttribute("d", d);
+
+    this.lassoPath.setAttribute("d", path);
   }
 
   clearLasso(): void {
@@ -115,22 +126,32 @@ export class Overlay {
     this.updateSelectionRect(rect);
 
     this.labelTag.style.display = label ? "block" : "none";
+
     if (label) {
       this.labelTag.textContent = label;
-      this.labelTag.style.transform = `translate(${rect.x - window.scrollX}px, ${rect.y - window.scrollY - 28}px)`;
+      this.labelTag.style.transform = `translate(${rect.x - window.scrollX}px, ${
+        rect.y - window.scrollY - 28
+      }px)`;
     }
 
     this.sizeLabel.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
     this.sizeLabel.style.display = "block";
-    this.sizeLabel.style.transform = `translate(${rect.x - window.scrollX + rect.width / 2 - 40}px, ${rect.y - window.scrollY + rect.height + 8}px)`;
+    this.sizeLabel.style.transform = `translate(${
+      rect.x - window.scrollX + rect.width / 2 - 40
+    }px, ${rect.y - window.scrollY + rect.height + 8}px)`;
   }
 
   updateSelectionRect(rect: Rect): void {
-    this.selectionBox.style.transform = `translate(${rect.x - window.scrollX}px, ${rect.y - window.scrollY}px)`;
+    this.selectionBox.style.transform = `translate(${rect.x - window.scrollX}px, ${
+      rect.y - window.scrollY
+    }px)`;
     this.selectionBox.style.width = `${rect.width}px`;
     this.selectionBox.style.height = `${rect.height}px`;
+
     this.sizeLabel.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    this.sizeLabel.style.transform = `translate(${rect.x - window.scrollX + rect.width / 2 - 40}px, ${rect.y - window.scrollY + rect.height + 8}px)`;
+    this.sizeLabel.style.transform = `translate(${
+      rect.x - window.scrollX + rect.width / 2 - 40
+    }px, ${rect.y - window.scrollY + rect.height + 8}px)`;
   }
 
   hideSelection(): void {
@@ -140,25 +161,32 @@ export class Overlay {
     this.clearHandles();
   }
 
-  renderHandles(onHandleDown: (corner: string, e: PointerEvent) => void): void {
+  renderHandles(onHandleDown: (corner: string, event: PointerEvent) => void): void {
     this.clearHandles();
+
     const corners = ["nw", "ne", "sw", "se"];
+
     for (const corner of corners) {
       const handle = document.createElement("div");
       handle.className = `genie-handle genie-handle-${corner}`;
       handle.setAttribute(GENIE_ATTR, "handle");
       handle.dataset.corner = corner;
-      handle.addEventListener("pointerdown", (e) => {
-        e.stopPropagation();
-        onHandleDown(corner, e);
+
+      handle.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+        onHandleDown(corner, event);
       });
+
       this.selectionBox.appendChild(handle);
       this.handles.push(handle);
     }
   }
 
   clearHandles(): void {
-    for (const h of this.handles) h.remove();
+    for (const handle of this.handles) {
+      handle.remove();
+    }
+
     this.handles = [];
   }
 }
@@ -174,6 +202,7 @@ export class LassoController {
 
   move(x: number, y: number): Point[] {
     if (!this.active) return this.points;
+
     this.points.push({ x: x + window.scrollX, y: y + window.scrollY });
     return this.points;
   }
