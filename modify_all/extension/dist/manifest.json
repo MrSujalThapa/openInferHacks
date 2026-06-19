@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Genie — Figma-style Web Editor",
+  "version": "0.1.0",
+  "description": "Turn live websites into a Figma-style edit mode with AI-powered section edits.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://localhost:4000/*", "http://127.0.0.1:4000/*", "<all_urls>"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Genie Edit Mode"
+  },
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

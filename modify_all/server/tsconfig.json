@@ -8,10 +8,10 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "rootDir": "..",
     "outDir": "dist",
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "../shared/**/*.ts"]
 }
-

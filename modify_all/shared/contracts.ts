@@ -14,23 +14,6 @@ export type Point = {
   y: number;
 };
 
-export type EditableGroup = {
-  groupId: GroupId;
-  userId: UserId;
-  domain: string;
-  path: string;
-  label?: string;
-  shape: {
-    type: "rectangle" | "lasso";
-    rect: Rect;
-    points?: Point[];
-  };
-  target: TargetSignature;
-  domSummary: DomElementSummary[];
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type TargetSignature = {
   textSignature?: string;
   selectorHint?: string;
@@ -53,6 +36,23 @@ export type DomElementSummary = {
     fontSize?: string;
     display?: string;
   };
+};
+
+export type EditableGroup = {
+  groupId: GroupId;
+  userId: UserId;
+  domain: string;
+  path: string;
+  label?: string;
+  shape: {
+    type: "rectangle" | "lasso";
+    rect: Rect;
+    points?: Point[];
+  };
+  target: TargetSignature;
+  domSummary: DomElementSummary[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AllowedCssProperty =
@@ -118,3 +118,34 @@ export type SectionEditAgentResult = {
   traceId: string;
 };
 
+export type GroupUnderstandResult = {
+  groupId: GroupId;
+  label: string;
+  sectionType: string;
+  confidence: number;
+};
+
+export type AgentTraceStep = {
+  name: string;
+  status: "success" | "failed" | "skipped";
+  inputPreview?: unknown;
+  outputPreview?: unknown;
+  error?: string;
+  startedAt: string;
+  finishedAt: string;
+};
+
+export const DEMO_USER_ID: UserId = "demo-user";
+
+export const ALLOWED_CSS_PROPERTIES: AllowedCssProperty[] = [
+  "backgroundColor",
+  "color",
+  "borderRadius",
+  "opacity",
+  "fontSize",
+  "padding",
+  "margin",
+  "boxShadow",
+  "border",
+  "overflow",
+];

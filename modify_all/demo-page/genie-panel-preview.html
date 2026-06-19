@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genie Panel — UI Preview (Person 3)</title>
+  <link rel="stylesheet" href="../../extension/src/content/ui/genie-panel.css" />
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f3f2ef;
+      font-family: system-ui, sans-serif;
+    }
+    .preview-note {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 1;
+      background: #0f172a;
+      color: #94a3b8;
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+    .mock-selection {
+      position: absolute;
+      left: 320px;
+      top: 120px;
+      width: 300px;
+      height: 360px;
+      border: 2px solid #0ea5e9;
+      box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.3);
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    .mock-selection-label {
+      position: absolute;
+      left: 320px;
+      top: 92px;
+      background: #0ea5e9;
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 4px 4px 0 0;
+    }
+    /* Static mock panel positioned beside selection */
+    .genie-panel {
+      display: flex !important;
+      transform: translate(636px, 120px);
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-note">Static mock — milestone 1 Genie panel shell (no extension required)</div>
+  <div class="mock-selection-label">News Sidebar</div>
+  <div class="mock-selection" aria-hidden="true"></div>
+
+  <div class="genie-panel" role="dialog" aria-label="Genie section editor">
+    <div class="genie-panel-accent"></div>
+    <div class="genie-panel-header">
+      <div class="genie-panel-heading">
+        <div class="genie-panel-title-row">
+          <span class="genie-panel-mark" aria-hidden="true">✦</span>
+          <div class="genie-panel-title">Genie</div>
+        </div>
+        <div class="genie-panel-subtitle">Editing: News Sidebar</div>
+      </div>
+      <button type="button" class="genie-panel-close" aria-label="Close">×</button>
+    </div>
+    <div class="genie-panel-scope">This group only</div>
+    <div class="genie-quick-actions" role="group" aria-label="Quick actions">
+      <button type="button" class="genie-chip is-selected" aria-pressed="true">Dark mode</button>
+      <button type="button" class="genie-chip">Compact</button>
+      <button type="button" class="genie-chip">Hide</button>
+      <button type="button" class="genie-chip">Move lower</button>
+      <button type="button" class="genie-chip">Match my style</button>
+    </div>
+    <label class="genie-prompt-label">
+      <textarea class="genie-prompt" rows="3" placeholder="Tell Genie what to change in this group">Make this compact dark mode and less distracting.</textarea>
+    </label>
+    <div class="genie-panel-status genie-status-preview-ready" aria-live="polite">
+      <span class="genie-status-dot"></span>
+      <span class="genie-status-text">Preview ready — 2 operation(s)</span>
+    </div>
+    <div class="genie-panel-actions">
+      <button type="button" class="genie-btn genie-btn-secondary">Cancel</button>
+      <button type="button" class="genie-btn genie-btn-primary">Preview</button>
+      <button type="button" class="genie-btn genie-btn-success">Save</button>
+    </div>
+  </div>
+</body>
+</html>
