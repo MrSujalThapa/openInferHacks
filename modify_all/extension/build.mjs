@@ -52,6 +52,14 @@ async function build() {
     format: "iife",
   });
 
+  await esbuild.build({
+    ...common,
+    entryPoints: [path.resolve(__dirname, "../demo-page/agent-trace-main.ts")],
+    outfile: path.resolve(__dirname, "../demo-page/agent-trace.js"),
+    format: "iife",
+    alias: { "@shared": sharedPath },
+  });
+
   console.log("[extension] built to dist/");
 }
 

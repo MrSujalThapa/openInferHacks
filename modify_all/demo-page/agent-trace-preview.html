@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genie — Agent Trace Preview (Person 3)</title>
+  <link rel="stylesheet" href="../../extension/src/content/ui/agent-trace.css" />
+</head>
+<body class="agent-trace-page">
+  <div class="agent-trace-page-toolbar">
+    <span style="font-size:12px;color:#64748b">Static mock — no backend required</span>
+    <a href="agent-trace.html">Live page →</a>
+  </div>
+
+  <div class="agent-trace">
+    <header class="agent-trace-header">
+      <div class="agent-trace-heading">
+        <div class="agent-trace-title-row">
+          <span class="agent-trace-mark" aria-hidden="true">◎</span>
+          <h1 class="agent-trace-title">Agent Trace</h1>
+        </div>
+        <p class="agent-trace-subtitle">Section-scoped OpenInfer workflow</p>
+      </div>
+      <div class="agent-trace-badges">
+        <span class="agent-trace-badge">OpenInfer</span>
+        <span class="agent-trace-badge">LangGraph</span>
+        <span class="agent-trace-badge agent-trace-badge-mongo">MongoDB</span>
+      </div>
+    </header>
+
+    <div class="agent-trace-meta">
+      <div class="agent-trace-meta-grid">
+        <div class="agent-trace-meta-item">
+          <span class="agent-trace-meta-label">Section</span>
+          <span class="agent-trace-meta-value">News Sidebar</span>
+        </div>
+        <div class="agent-trace-meta-item agent-trace-meta-wide">
+          <span class="agent-trace-meta-label">Instruction</span>
+          <span class="agent-trace-meta-value">"Make this compact dark mode and less distracting."</span>
+        </div>
+        <div class="agent-trace-meta-item agent-trace-meta-wide">
+          <span class="agent-trace-meta-label">OpenInfer intent</span>
+          <span class="agent-trace-meta-value agent-trace-meta-muted">reduce visual prominence while preserving readability</span>
+        </div>
+        <div class="agent-trace-meta-item">
+          <span class="agent-trace-meta-label">Trace ID</span>
+          <span class="agent-trace-meta-value agent-trace-mono">trace_demo_news_sidebar</span>
+        </div>
+        <div class="agent-trace-meta-item">
+          <span class="agent-trace-meta-label">Saved</span>
+          <span class="agent-trace-meta-value">Jun 19, 2026, 2:30 PM</span>
+        </div>
+      </div>
+    </div>
+
+    <section class="agent-trace-section">
+      <h2 class="agent-trace-section-title">Workflow</h2>
+      <ol class="agent-trace-timeline">
+        <li class="agent-trace-step agent-trace-step-success">
+          <span class="agent-trace-step-marker"></span>
+          <div class="agent-trace-step-body">
+            <span class="agent-trace-step-label">Loaded selected group</span>
+            <span class="agent-trace-step-detail">News Sidebar</span>
+          </div>
+        </li>
+        <li class="agent-trace-step agent-trace-step-success">
+          <span class="agent-trace-step-marker"></span>
+          <div class="agent-trace-step-body">
+            <span class="agent-trace-step-label">Retrieved style memory</span>
+            <span class="agent-trace-step-detail">1 memory item(s)</span>
+          </div>
+        </li>
+        <li class="agent-trace-step agent-trace-step-success">
+          <span class="agent-trace-step-marker"></span>
+          <div class="agent-trace-step-body">
+            <span class="agent-trace-step-label">Understood section with OpenInfer</span>
+            <span class="agent-trace-step-detail">right_sidebar · 91% confidence</span>
+          </div>
+        </li>
+        <li class="agent-trace-step agent-trace-step-success">
+          <span class="agent-trace-step-marker"></span>
+          <div class="agent-trace-step-body">
+            <span class="agent-trace-step-label">Planned patch</span>
+            <span class="agent-trace-step-detail">2 operation(s)</span>
+          </div>
+        </li>
+        <li class="agent-trace-step agent-trace-step-success">
+          <span class="agent-trace-step-marker"></span>
+          <div class="agent-trace-step-body">
+            <span class="agent-trace-step-label">Validated safe operations</span>
+            <span class="agent-trace-step-detail">All operations allowed</span>
+          </div>
+        </li>
+        <li class="agent-trace-step agent-trace-step-success">
+          <span class="agent-trace-step-marker"></span>
+          <div class="agent-trace-step-body">
+            <span class="agent-trace-step-label">Critiqued patch</span>
+            <span class="agent-trace-step-detail">Operations affect only the selected group and use allowed properties.</span>
+          </div>
+        </li>
+        <li class="agent-trace-step agent-trace-step-success">
+          <span class="agent-trace-step-marker"></span>
+          <div class="agent-trace-step-body">
+            <span class="agent-trace-step-label">Saved customization to MongoDB</span>
+            <span class="agent-trace-step-detail">trace_demo_news_sidebar</span>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="agent-trace-section">
+      <h2 class="agent-trace-section-title">Final patch operations</h2>
+      <div class="agent-trace-op-pills">
+        <span class="agent-trace-op-pill">compact</span>
+        <span class="agent-trace-op-pill">style · backgroundColor, color, borderRadius, opacity</span>
+      </div>
+    </section>
+
+    <footer class="agent-trace-footer">
+      <div class="agent-trace-footer-row">
+        <span class="agent-trace-source agent-trace-source-mock">Mock fallback — backend offline or no runs yet</span>
+        <span class="agent-trace-critique is-safe">✓ Safe patch · Operations affect only the selected group.</span>
+      </div>
+      <p class="agent-trace-note">Genie edits only the double-clicked group — not the whole page.</p>
+    </footer>
+  </div>
+</body>
+</html>

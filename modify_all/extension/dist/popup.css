@@ -21,4 +21,21 @@ button {
 }
 button:hover { filter: brightness(1.08); }
 button.active { background: #334155; }
+.trace-link {
+  display: block;
+  margin-top: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  color: #7dd3fc;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(14, 165, 233, 0.08);
+}
+.trace-link:hover {
+  background: rgba(14, 165, 233, 0.16);
+  text-decoration: none;
+}
 .hint { font-size: 11px; color: #64748b; margin-top: 12px; line-height: 1.4; }
