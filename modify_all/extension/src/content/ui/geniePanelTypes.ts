@@ -27,6 +27,7 @@ export type GeniePanelPosition = {
 export type GeniePanelProps = {
   visible: boolean;
   sectionLabel: string;
+  contextMessage?: string;
   placeholder: string;
   promptValue: string;
   quickActions: GenieQuickAction[];
@@ -44,14 +45,14 @@ export type GeniePanelViewCallbacks = {
   onCancel: () => void;
 };
 
-export const GENIE_PANEL_PLACEHOLDER = "Tell Genie what to change in this group";
+export const GENIE_PANEL_PLACEHOLDER = "Ask agent...";
 
 export const DEFAULT_QUICK_ACTIONS: GenieQuickAction[] = [
-  { id: "dark-mode", label: "Dark mode", prompt: "Apply dark mode to this group" },
-  { id: "compact", label: "Compact", prompt: "Make this group more compact" },
-  { id: "hide", label: "Hide", prompt: "Hide this group" },
-  { id: "move-lower", label: "Move lower", prompt: "Move this group lower on the page" },
-  { id: "match-style", label: "Match my style", prompt: "Match my saved style preferences" },
+  { id: "dark-mode", label: "🌙 Dark mode", prompt: "Apply dark mode to this group" },
+  { id: "compact", label: "📐 Compact", prompt: "Make this group more compact" },
+  { id: "hide", label: "👁 Hide", prompt: "Hide this group" },
+  { id: "move-lower", label: "⬇ Move lower", prompt: "Move this group lower on the page" },
+  { id: "match-style", label: "✨ Match my style", prompt: "Match my saved style preferences" },
 ];
 
 export const DEFAULT_GENIE_PANEL_PROPS: GeniePanelProps = {

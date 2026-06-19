@@ -16,7 +16,7 @@ export type GeniePanelCallbacks = {
   onCancel: () => void;
 };
 
-const PANEL_WIDTH = 336;
+const PANEL_WIDTH = 300;
 
 export class GeniePanel {
   private view: GeniePanelView;
@@ -61,6 +61,7 @@ export class GeniePanel {
   positionBeside(rect: Rect, label?: string): void {
     this.props.visible = true;
     this.props.sectionLabel = label ?? "Section";
+    this.props.contextMessage = `I noticed you've selected ${label ?? "this section"}. What would you like to do?`;
     this.props.status = "idle";
     this.props.statusMessage = "";
     this.props.position = computePanelPosition(rect);

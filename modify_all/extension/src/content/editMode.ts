@@ -37,8 +37,10 @@ import {
   ensureReapplyObserver,
   loadAndApplyCustomizations,
   saveCustomization,
+  clearPageCustomizations,
 } from "./persistence";
 import { GeniePanel } from "./ui/geniePanel";
+import { GlobalSaveButton } from "./ui/globalSaveButton";
 
 export type EditModeState =
   | "off"
@@ -56,6 +58,16 @@ type SelectionEntry = {
   lastManualHint: ManualEditHint | null;
 };
 
+type PendingEdit = {
+  group: EditableGroup;
+  element: HTMLElement;
+  operations: PatchOperation[];
+  lastManualHint: ManualEditHint | null;
+  dirty: boolean;
+};
+
+type SaveableEntry = Omit<PendingEdit, "dirty">;
+
 type DragSnapshot = {
   translate: { x: number; y: number };
   rect: EditableGroup["shape"]["rect"];
@@ -70,6 +82,8 @@ class EditModeController {
   private overlay: Overlay | null = null;
   private lasso = new LassoController();
   private panel: GeniePanel | null = null;
+  private globalSave: GlobalSaveButton | null = null;
+  private pendingEdits = new Map<string, PendingEdit>();
   private selections: SelectionEntry[] = [];
   private primaryIndex = 0;
   private dragState = createDragState();
@@ -104,6 +118,11 @@ class EditModeController {
     this.panel.mount();
     this.panel.hide();
 
+    this.globalSave = new GlobalSaveButton({
+      onSave: () => this.saveAllPending(),
+    });
+    this.globalSave.mount();
+
     this.bindEvents();
     this.state = "hovering";
 
@@ -117,9 +136,11 @@ class EditModeController {
     this.unbindEvents();
 
     this.panel?.unmount();
+    this.globalSave?.unmount();
     this.overlay?.unmount();
 
     this.selections = [];
+    this.pendingEdits.clear();
     this.primaryIndex = 0;
     this.dragSnapshots.clear();
     this.resizeSnapshots.clear();
@@ -127,7 +148,17 @@ class EditModeController {
     this.pointerDownClient = null;
     this.overlay = null;
     this.panel = null;
+    this.globalSave = null;
     this.state = "off";
+  }
+
+  async clearCurrentPageCustomizations(): Promise<number> {
+    const deletedCount = await clearPageCustomizations();
+    this.pendingEdits.clear();
+    this.clearSelections();
+    this.updateGlobalSaveButton();
+    this.closePanel();
+    return deletedCount;
   }
 
   private getPrimary(): SelectionEntry | null {
@@ -191,6 +222,7 @@ class EditModeController {
     const target = event.target as Element;
 
     if (target.closest(".genie-panel")) return;
+    if (target.closest(".genie-global-save")) return;
     if (target.closest(".genie-selection-box")) return;
     if (this.state === "agent-open") return;
     if (!target.closest(".genie-overlay-root")) return;
@@ -378,6 +410,7 @@ class EditModeController {
           entry.operations,
           manualHint,
         );
+        this.syncPendingFromEntry(entry, true);
       }
 
       console.info("[genie] manual operations updated", {
@@ -521,6 +554,10 @@ class EditModeController {
   }
 
   private clearSelections(): void {
+    for (const entry of this.selections) {
+      this.syncPendingFromEntry(entry);
+    }
+
     this.selections = [];
     this.primaryIndex = 0;
     this.overlay?.hideAllSelections();
@@ -605,11 +642,89 @@ class EditModeController {
       applyOperations(primary.group.groupId, primary.element, primary.operations);
 
       primary.group.label = result.sectionLabel;
+      this.syncPendingFromEntry(primary, true);
       this.syncOverlaySelections();
       this.panel.showResult(result);
     } catch (error) {
       this.panel.showError(String(error));
     }
+  }
+
+  private syncPendingFromEntry(entry: SaveableEntry, forceDirty = false): void {
+    const hasChanges = entry.operations.length > 0 || entry.lastManualHint !== null;
+    const existing = this.pendingEdits.get(entry.group.groupId);
+    const dirty = forceDirty || hasChanges || existing?.dirty === true;
+
+    if (!dirty && !existing) return;
+
+    this.pendingEdits.set(entry.group.groupId, {
+      group: entry.group,
+      element: entry.element,
+      operations: entry.operations,
+      lastManualHint: entry.lastManualHint,
+      dirty,
+    });
+    this.updateGlobalSaveButton();
+  }
+
+  private updateGlobalSaveButton(): void {
+    const count = [...this.pendingEdits.values()].filter((entry) => entry.dirty).length;
+    this.globalSave?.update(count);
+  }
+
+  private buildManualHint(entry: SaveableEntry): ManualEditHint {
+    return (
+      entry.lastManualHint ??
+      (() => {
+        const layout = parseElementLayout(entry.element);
+        return {
+          translate: { x: layout.translateX, y: layout.translateY },
+          rect: { width: layout.visualWidth, height: layout.visualHeight },
+        };
+      })()
+    );
+  }
+
+  private async saveGroupEntry(entry: SaveableEntry): Promise<boolean> {
+    const hint = this.buildManualHint(entry);
+
+    let operations = buildOperationsFromManualEdit(
+      entry.group.groupId,
+      entry.element,
+      entry.operations,
+      hint,
+    );
+
+    operations = normalizeOperationsForGroup(entry.group.groupId, operations);
+    entry.operations = operations;
+
+    const rect = getVisibleRect(entry.element);
+    if (rect) {
+      entry.group.target = { ...entry.group.target, bbox: rect };
+    }
+
+    if (operations.length === 0) return false;
+
+    console.info("[genie] saving customization", {
+      groupId: entry.group.groupId,
+      operationTypes: operations.map((op) => op.type),
+      operationCount: operations.length,
+    });
+
+    await saveCustomization(entry.group.groupId, entry.group.target, operations);
+
+    const pending = this.pendingEdits.get(entry.group.groupId);
+    if (pending) {
+      pending.dirty = false;
+      pending.operations = operations;
+    }
+
+    const selection = this.findSelection(entry.group.groupId);
+    if (selection) {
+      selection.operations = operations;
+    }
+
+    return true;
   }
 
   private async saveCurrent(): Promise<void> {
@@ -618,41 +733,8 @@ class EditModeController {
     let savedCount = 0;
 
     for (const entry of this.selections) {
-      const hint =
-        entry.lastManualHint ??
-        (() => {
-          const layout = parseElementLayout(entry.element);
-          return {
-            translate: { x: layout.translateX, y: layout.translateY },
-            rect: { width: layout.visualWidth, height: layout.visualHeight },
-          };
-        })();
-
-      let operations = buildOperationsFromManualEdit(
-        entry.group.groupId,
-        entry.element,
-        entry.operations,
-        hint,
-      );
-
-      operations = normalizeOperationsForGroup(entry.group.groupId, operations);
-      entry.operations = operations;
-
-      const rect = getVisibleRect(entry.element);
-      if (rect) {
-        entry.group.target = { ...entry.group.target, bbox: rect };
-      }
-
-      if (operations.length === 0) continue;
-
-      console.info("[genie] saving customization", {
-        groupId: entry.group.groupId,
-        operationTypes: operations.map((op) => op.type),
-        operationCount: operations.length,
-      });
-
-      await saveCustomization(entry.group.groupId, entry.group.target, operations);
-      savedCount += 1;
+      this.syncPendingFromEntry(entry);
+      if (await this.saveGroupEntry(entry)) savedCount += 1;
     }
 
     if (savedCount === 0) {
@@ -660,7 +742,41 @@ class EditModeController {
       return;
     }
 
+    this.updateGlobalSaveButton();
     this.panel.showSaved();
+  }
+
+  private async saveAllPending(): Promise<void> {
+    if (!this.globalSave) return;
+
+    for (const entry of this.selections) {
+      this.syncPendingFromEntry(entry);
+    }
+
+    const dirtyEntries = [...this.pendingEdits.values()].filter((entry) => entry.dirty);
+    if (dirtyEntries.length === 0) {
+      this.globalSave.showError("No unsaved changes on this page");
+      return;
+    }
+
+    this.globalSave.showSaving();
+
+    let savedCount = 0;
+    try {
+      for (const entry of dirtyEntries) {
+        if (await this.saveGroupEntry(entry)) savedCount += 1;
+      }
+
+      if (savedCount === 0) {
+        this.globalSave.showError("No changes to save");
+        return;
+      }
+
+      this.updateGlobalSaveButton();
+      this.globalSave.showSuccess();
+    } catch (error) {
+      this.globalSave.showError(String(error));
+    }
   }
 }
 
@@ -718,6 +834,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       enabled: editMode.state !== "off",
     });
 
+    return true;
+  }
+
+  if (message.type === "GENIE_CLEAR_PAGE_CUSTOMIZATIONS") {
+    void editMode.clearCurrentPageCustomizations().then(
+      (deletedCount) => sendResponse({ ok: true, deletedCount }),
+      (error) => sendResponse({ ok: false, error: String(error) }),
+    );
     return true;
   }
 

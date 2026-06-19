@@ -1,5 +1,5 @@
 import type { PatchOperation, SiteCustomization } from "../../../shared/contracts";
-import { apiGet, apiPost, getPageContext } from "./api";
+import { apiGet, apiPost, apiDelete, getPageContext } from "./api";
 import { applyOperations, normalizeOperationsForGroup, revertGroup } from "./patchEngine";
 import { resolveTargetElement } from "./grouping";
 
@@ -73,6 +73,24 @@ export function bootPersistedCustomizations(): void {
   } else {
     run();
   }
+}
+
+export async function clearPageCustomizations(): Promise<number> {
+  const { domain, path } = getPageContext();
+  const data = await apiDelete<{ ok: boolean; deletedCount: number }>(
+    `/api/customizations?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`,
+  );
+
+  for (const el of document.querySelectorAll("[data-genie-group]")) {
+    if (el instanceof HTMLElement) {
+      const groupId = el.getAttribute("data-genie-group");
+      if (groupId) revertGroup(groupId);
+      el.removeAttribute("data-genie-group");
+    }
+  }
+
+  console.info("[genie] cleared page customizations", { domain, path, deletedCount: data.deletedCount });
+  return data.deletedCount ?? 0;
 }
 
 export async function saveCustomization(

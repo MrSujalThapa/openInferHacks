@@ -16,11 +16,19 @@
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   }
+  async function apiDelete(path) {
+    const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
   function getPageContext() {
-    const { hostname, pathname } = window.location;
+    const { hostname, pathname, search } = window.location;
     let path = pathname || "/";
     if (path.length > 1 && path.endsWith("/")) {
       path = path.slice(0, -1);
+    }
+    if (search) {
+      path = `${path}${search}`;
     }
     return { domain: hostname, path };
   }
@@ -193,6 +201,20 @@
       visualWidth,
       visualHeight
     });
+  }
+  function revertGroup(groupId) {
+    const state = applied.get(groupId);
+    if (!state) return;
+    const { element, originalStyle } = state;
+    element.style.cssText = "";
+    for (const [prop, value] of Object.entries(originalStyle)) {
+      if (value) {
+        element.style[prop] = value;
+      }
+    }
+    delete element.dataset.genieBaseWidth;
+    delete element.dataset.genieBaseHeight;
+    applied.delete(groupId);
   }
   function getElementTransform(element) {
     const layout = parseElementLayout(element);
@@ -659,6 +681,21 @@
       run();
     }
   }
+  async function clearPageCustomizations() {
+    const { domain, path } = getPageContext();
+    const data = await apiDelete(
+      `/api/customizations?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`
+    );
+    for (const el of document.querySelectorAll("[data-genie-group]")) {
+      if (el instanceof HTMLElement) {
+        const groupId = el.getAttribute("data-genie-group");
+        if (groupId) revertGroup(groupId);
+        el.removeAttribute("data-genie-group");
+      }
+    }
+    console.info("[genie] cleared page customizations", { domain, path, deletedCount: data.deletedCount });
+    return data.deletedCount ?? 0;
+  }
   async function saveCustomization(groupId, target, operations) {
     const { domain, path } = getPageContext();
     await apiPost("/api/customizations", {
@@ -966,13 +1003,13 @@
   };
 
   // src/content/ui/geniePanelTypes.ts
-  var GENIE_PANEL_PLACEHOLDER = "Tell Genie what to change in this group";
+  var GENIE_PANEL_PLACEHOLDER = "Ask agent...";
   var DEFAULT_QUICK_ACTIONS = [
-    { id: "dark-mode", label: "Dark mode", prompt: "Apply dark mode to this group" },
-    { id: "compact", label: "Compact", prompt: "Make this group more compact" },
-    { id: "hide", label: "Hide", prompt: "Hide this group" },
-    { id: "move-lower", label: "Move lower", prompt: "Move this group lower on the page" },
-    { id: "match-style", label: "Match my style", prompt: "Match my saved style preferences" }
+    { id: "dark-mode", label: "\u{1F319} Dark mode", prompt: "Apply dark mode to this group" },
+    { id: "compact", label: "\u{1F4D0} Compact", prompt: "Make this group more compact" },
+    { id: "hide", label: "\u{1F441} Hide", prompt: "Hide this group" },
+    { id: "move-lower", label: "\u2B07 Move lower", prompt: "Move this group lower on the page" },
+    { id: "match-style", label: "\u2728 Match my style", prompt: "Match my saved style preferences" }
   ];
   var DEFAULT_GENIE_PANEL_PROPS = {
     visible: false,
@@ -1000,7 +1037,8 @@
       this.props = {
         visible: false,
         sectionLabel: "Section",
-        placeholder: "Tell Genie what to change in this group",
+        contextMessage: "",
+        placeholder: "Ask agent...",
         promptValue: "",
         quickActions: [],
         selectedQuickActionId: null,
@@ -1013,24 +1051,20 @@
       this.root.className = "genie-panel";
       this.root.setAttribute(GENIE_ATTR, "panel");
       this.root.setAttribute("role", "dialog");
-      this.root.setAttribute("aria-label", "Genie section editor");
+      this.root.setAttribute("aria-label", "Genie AI Agent");
       this.root.innerHTML = `
-      <div class="genie-panel-accent"></div>
       <div class="genie-panel-header">
-        <div class="genie-panel-heading">
-          <div class="genie-panel-title-row">
-            <span class="genie-panel-mark" aria-hidden="true">\u2726</span>
-            <div class="genie-panel-title">Genie</div>
-          </div>
-          <div class="genie-panel-subtitle">Edit this section</div>
+        <div class="genie-panel-title-row">
+          <span class="genie-agent-dot" aria-hidden="true"></span>
+          <div class="genie-panel-title">AI Agent</div>
         </div>
         <button type="button" class="genie-panel-close" data-action="close" aria-label="Close Genie panel">\xD7</button>
       </div>
-      <div class="genie-panel-scope">This group only</div>
+      <div class="genie-panel-context"></div>
       <div class="genie-quick-actions" role="group" aria-label="Quick actions"></div>
       <label class="genie-prompt-label">
         <span class="genie-sr-only">Section edit prompt</span>
-        <textarea class="genie-prompt" rows="3"></textarea>
+        <textarea class="genie-prompt" rows="2"></textarea>
       </label>
       <div class="genie-panel-status" aria-live="polite">
         <span class="genie-status-dot" aria-hidden="true"></span>
@@ -1042,7 +1076,7 @@
         <button type="button" class="genie-btn genie-btn-success" data-action="save">Save</button>
       </div>
     `;
-      this.subtitleEl = this.root.querySelector(".genie-panel-subtitle");
+      this.contextEl = this.root.querySelector(".genie-panel-context");
       this.chipsEl = this.root.querySelector(".genie-quick-actions");
       this.promptEl = this.root.querySelector(".genie-prompt");
       this.statusEl = this.root.querySelector(".genie-panel-status");
@@ -1068,7 +1102,7 @@
       this.root.style.display = props.visible ? "flex" : "none";
       if (!props.visible) return;
       this.root.style.transform = `translate(${props.position.left}px, ${props.position.top}px)`;
-      this.subtitleEl.textContent = props.sectionLabel ? `Editing: ${props.sectionLabel}` : "Edit this section";
+      this.contextEl.textContent = props.contextMessage || `I noticed you've selected ${props.sectionLabel}. What would you like to do?`;
       this.promptEl.placeholder = props.placeholder;
       if (this.promptEl.value !== props.promptValue) {
         this.promptEl.value = props.promptValue;
@@ -1104,7 +1138,7 @@
   };
 
   // src/content/ui/geniePanel.ts
-  var PANEL_WIDTH = 336;
+  var PANEL_WIDTH = 300;
   var GeniePanel = class {
     constructor(callbacks, initialProps) {
       this.callbacks = callbacks;
@@ -1140,6 +1174,7 @@
     positionBeside(rect, label) {
       this.props.visible = true;
       this.props.sectionLabel = label ?? "Section";
+      this.props.contextMessage = `I noticed you've selected ${label ?? "this section"}. What would you like to do?`;
       this.props.status = "idle";
       this.props.statusMessage = "";
       this.props.position = computePanelPosition(rect);
@@ -1210,6 +1245,64 @@
     return { left, top };
   }
 
+  // src/content/ui/globalSaveButton.ts
+  var GlobalSaveButton = class {
+    constructor(callbacks) {
+      this.callbacks = callbacks;
+      this.root = document.createElement("button");
+      this.root.type = "button";
+      this.root.className = "genie-global-save";
+      this.root.setAttribute(GENIE_ATTR, "global-save");
+      this.root.textContent = "Save all changes";
+      this.root.style.display = "none";
+      this.root.addEventListener("click", () => this.callbacks.onSave());
+      this.toast = document.createElement("div");
+      this.toast.className = "genie-global-save-toast";
+      this.toast.setAttribute(GENIE_ATTR, "global-save-toast");
+      this.toast.style.display = "none";
+      this.toast.textContent = "All changes saved";
+    }
+    mount() {
+      document.documentElement.appendChild(this.root);
+      document.documentElement.appendChild(this.toast);
+    }
+    unmount() {
+      this.root.remove();
+      this.toast.remove();
+    }
+    update(count) {
+      if (count <= 0) {
+        this.root.style.display = "none";
+        return;
+      }
+      this.root.style.display = "block";
+      this.root.textContent = count === 1 ? "Save changes" : `Save ${count} changes`;
+      this.root.disabled = false;
+    }
+    showSaving() {
+      this.root.disabled = true;
+      this.root.textContent = "Saving\u2026";
+    }
+    showSuccess() {
+      this.root.style.display = "none";
+      this.toast.style.display = "block";
+      window.setTimeout(() => {
+        this.toast.style.display = "none";
+      }, 2200);
+    }
+    showError(message) {
+      this.root.disabled = false;
+      this.toast.textContent = message;
+      this.toast.classList.add("is-error");
+      this.toast.style.display = "block";
+      window.setTimeout(() => {
+        this.toast.style.display = "none";
+        this.toast.classList.remove("is-error");
+        this.toast.textContent = "All changes saved";
+      }, 2800);
+    }
+  };
+
   // src/content/editMode.ts
   var CLICK_DRAG_THRESHOLD = 8;
   var EditModeController = class {
@@ -1218,6 +1311,8 @@
       this.overlay = null;
       this.lasso = new LassoController();
       this.panel = null;
+      this.globalSave = null;
+      this.pendingEdits = /* @__PURE__ */ new Map();
       this.selections = [];
       this.primaryIndex = 0;
       this.dragState = createDragState();
@@ -1247,6 +1342,7 @@
         if (this.state === "off" || !this.overlay) return;
         const target = event.target;
         if (target.closest(".genie-panel")) return;
+        if (target.closest(".genie-global-save")) return;
         if (target.closest(".genie-selection-box")) return;
         if (this.state === "agent-open") return;
         if (!target.closest(".genie-overlay-root")) return;
@@ -1377,6 +1473,7 @@
               entry.operations,
               manualHint
             );
+            this.syncPendingFromEntry(entry, true);
           }
           console.info("[genie] manual operations updated", {
             groups: this.selections.map((s) => ({
@@ -1429,6 +1526,10 @@
       });
       this.panel.mount();
       this.panel.hide();
+      this.globalSave = new GlobalSaveButton({
+        onSave: () => this.saveAllPending()
+      });
+      this.globalSave.mount();
       this.bindEvents();
       this.state = "hovering";
       await loadAndApplyCustomizations();
@@ -1438,8 +1539,10 @@
       document.body.classList.remove("genie-editing");
       this.unbindEvents();
       this.panel?.unmount();
+      this.globalSave?.unmount();
       this.overlay?.unmount();
       this.selections = [];
+      this.pendingEdits.clear();
       this.primaryIndex = 0;
       this.dragSnapshots.clear();
       this.resizeSnapshots.clear();
@@ -1447,7 +1550,16 @@
       this.pointerDownClient = null;
       this.overlay = null;
       this.panel = null;
+      this.globalSave = null;
       this.state = "off";
+    }
+    async clearCurrentPageCustomizations() {
+      const deletedCount = await clearPageCustomizations();
+      this.pendingEdits.clear();
+      this.clearSelections();
+      this.updateGlobalSaveButton();
+      this.closePanel();
+      return deletedCount;
     }
     getPrimary() {
       return this.selections[this.primaryIndex] ?? null;
@@ -1564,6 +1676,9 @@
       this.state = "group-selected";
     }
     clearSelections() {
+      for (const entry of this.selections) {
+        this.syncPendingFromEntry(entry);
+      }
       this.selections = [];
       this.primaryIndex = 0;
       this.overlay?.hideAllSelections();
@@ -1624,49 +1739,111 @@
         primary.operations = normalizeOperationsForGroup(primary.group.groupId, result.operations);
         applyOperations(primary.group.groupId, primary.element, primary.operations);
         primary.group.label = result.sectionLabel;
+        this.syncPendingFromEntry(primary, true);
         this.syncOverlaySelections();
         this.panel.showResult(result);
       } catch (error) {
         this.panel.showError(String(error));
       }
     }
+    syncPendingFromEntry(entry, forceDirty = false) {
+      const hasChanges = entry.operations.length > 0 || entry.lastManualHint !== null;
+      const existing = this.pendingEdits.get(entry.group.groupId);
+      const dirty = forceDirty || hasChanges || existing?.dirty === true;
+      if (!dirty && !existing) return;
+      this.pendingEdits.set(entry.group.groupId, {
+        group: entry.group,
+        element: entry.element,
+        operations: entry.operations,
+        lastManualHint: entry.lastManualHint,
+        dirty
+      });
+      this.updateGlobalSaveButton();
+    }
+    updateGlobalSaveButton() {
+      const count = [...this.pendingEdits.values()].filter((entry) => entry.dirty).length;
+      this.globalSave?.update(count);
+    }
+    buildManualHint(entry) {
+      return entry.lastManualHint ?? (() => {
+        const layout = parseElementLayout(entry.element);
+        return {
+          translate: { x: layout.translateX, y: layout.translateY },
+          rect: { width: layout.visualWidth, height: layout.visualHeight }
+        };
+      })();
+    }
+    async saveGroupEntry(entry) {
+      const hint = this.buildManualHint(entry);
+      let operations = buildOperationsFromManualEdit(
+        entry.group.groupId,
+        entry.element,
+        entry.operations,
+        hint
+      );
+      operations = normalizeOperationsForGroup(entry.group.groupId, operations);
+      entry.operations = operations;
+      const rect = getVisibleRect(entry.element);
+      if (rect) {
+        entry.group.target = { ...entry.group.target, bbox: rect };
+      }
+      if (operations.length === 0) return false;
+      console.info("[genie] saving customization", {
+        groupId: entry.group.groupId,
+        operationTypes: operations.map((op) => op.type),
+        operationCount: operations.length
+      });
+      await saveCustomization(entry.group.groupId, entry.group.target, operations);
+      const pending = this.pendingEdits.get(entry.group.groupId);
+      if (pending) {
+        pending.dirty = false;
+        pending.operations = operations;
+      }
+      const selection = this.findSelection(entry.group.groupId);
+      if (selection) {
+        selection.operations = operations;
+      }
+      return true;
+    }
     async saveCurrent() {
       if (!this.panel || this.selections.length === 0) return;
       let savedCount = 0;
       for (const entry of this.selections) {
-        const hint = entry.lastManualHint ?? (() => {
-          const layout = parseElementLayout(entry.element);
-          return {
-            translate: { x: layout.translateX, y: layout.translateY },
-            rect: { width: layout.visualWidth, height: layout.visualHeight }
-          };
-        })();
-        let operations = buildOperationsFromManualEdit(
-          entry.group.groupId,
-          entry.element,
-          entry.operations,
-          hint
-        );
-        operations = normalizeOperationsForGroup(entry.group.groupId, operations);
-        entry.operations = operations;
-        const rect = getVisibleRect(entry.element);
-        if (rect) {
-          entry.group.target = { ...entry.group.target, bbox: rect };
-        }
-        if (operations.length === 0) continue;
-        console.info("[genie] saving customization", {
-          groupId: entry.group.groupId,
-          operationTypes: operations.map((op) => op.type),
-          operationCount: operations.length
-        });
-        await saveCustomization(entry.group.groupId, entry.group.target, operations);
-        savedCount += 1;
+        this.syncPendingFromEntry(entry);
+        if (await this.saveGroupEntry(entry)) savedCount += 1;
       }
       if (savedCount === 0) {
         this.panel.showError("No changes to save \u2014 drag or resize the group, or run Preview first");
         return;
       }
+      this.updateGlobalSaveButton();
       this.panel.showSaved();
+    }
+    async saveAllPending() {
+      if (!this.globalSave) return;
+      for (const entry of this.selections) {
+        this.syncPendingFromEntry(entry);
+      }
+      const dirtyEntries = [...this.pendingEdits.values()].filter((entry) => entry.dirty);
+      if (dirtyEntries.length === 0) {
+        this.globalSave.showError("No unsaved changes on this page");
+        return;
+      }
+      this.globalSave.showSaving();
+      let savedCount = 0;
+      try {
+        for (const entry of dirtyEntries) {
+          if (await this.saveGroupEntry(entry)) savedCount += 1;
+        }
+        if (savedCount === 0) {
+          this.globalSave.showError("No changes to save");
+          return;
+        }
+        this.updateGlobalSaveButton();
+        this.globalSave.showSuccess();
+      } catch (error) {
+        this.globalSave.showError(String(error));
+      }
     }
   };
   var editMode = new EditModeController();
@@ -1712,6 +1889,13 @@
         state: editMode.state,
         enabled: editMode.state !== "off"
       });
+      return true;
+    }
+    if (message.type === "GENIE_CLEAR_PAGE_CUSTOMIZATIONS") {
+      void editMode.clearCurrentPageCustomizations().then(
+        (deletedCount) => sendResponse({ ok: true, deletedCount }),
+        (error) => sendResponse({ ok: false, error: String(error) })
+      );
       return true;
     }
     return false;

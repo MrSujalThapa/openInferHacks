@@ -4,7 +4,7 @@ import { STATUS_COPY } from "./geniePanelTypes";
 
 export class GeniePanelView {
   readonly root: HTMLDivElement;
-  private subtitleEl: HTMLDivElement;
+  private contextEl: HTMLDivElement;
   private chipsEl: HTMLDivElement;
   private promptEl: HTMLTextAreaElement;
   private statusEl: HTMLDivElement;
@@ -17,7 +17,8 @@ export class GeniePanelView {
     this.props = {
       visible: false,
       sectionLabel: "Section",
-      placeholder: "Tell Genie what to change in this group",
+      contextMessage: "",
+      placeholder: "Ask agent...",
       promptValue: "",
       quickActions: [],
       selectedQuickActionId: null,
@@ -31,24 +32,20 @@ export class GeniePanelView {
     this.root.className = "genie-panel";
     this.root.setAttribute(GENIE_ATTR, "panel");
     this.root.setAttribute("role", "dialog");
-    this.root.setAttribute("aria-label", "Genie section editor");
+    this.root.setAttribute("aria-label", "Genie AI Agent");
     this.root.innerHTML = `
-      <div class="genie-panel-accent"></div>
       <div class="genie-panel-header">
-        <div class="genie-panel-heading">
-          <div class="genie-panel-title-row">
-            <span class="genie-panel-mark" aria-hidden="true">✦</span>
-            <div class="genie-panel-title">Genie</div>
-          </div>
-          <div class="genie-panel-subtitle">Edit this section</div>
+        <div class="genie-panel-title-row">
+          <span class="genie-agent-dot" aria-hidden="true"></span>
+          <div class="genie-panel-title">AI Agent</div>
         </div>
         <button type="button" class="genie-panel-close" data-action="close" aria-label="Close Genie panel">×</button>
       </div>
-      <div class="genie-panel-scope">This group only</div>
+      <div class="genie-panel-context"></div>
       <div class="genie-quick-actions" role="group" aria-label="Quick actions"></div>
       <label class="genie-prompt-label">
         <span class="genie-sr-only">Section edit prompt</span>
-        <textarea class="genie-prompt" rows="3"></textarea>
+        <textarea class="genie-prompt" rows="2"></textarea>
       </label>
       <div class="genie-panel-status" aria-live="polite">
         <span class="genie-status-dot" aria-hidden="true"></span>
@@ -61,7 +58,7 @@ export class GeniePanelView {
       </div>
     `;
 
-    this.subtitleEl = this.root.querySelector(".genie-panel-subtitle") as HTMLDivElement;
+    this.contextEl = this.root.querySelector(".genie-panel-context") as HTMLDivElement;
     this.chipsEl = this.root.querySelector(".genie-quick-actions") as HTMLDivElement;
     this.promptEl = this.root.querySelector(".genie-prompt") as HTMLTextAreaElement;
     this.statusEl = this.root.querySelector(".genie-panel-status") as HTMLDivElement;
@@ -93,9 +90,9 @@ export class GeniePanelView {
     if (!props.visible) return;
 
     this.root.style.transform = `translate(${props.position.left}px, ${props.position.top}px)`;
-    this.subtitleEl.textContent = props.sectionLabel
-      ? `Editing: ${props.sectionLabel}`
-      : "Edit this section";
+    this.contextEl.textContent =
+      props.contextMessage ||
+      `I noticed you've selected ${props.sectionLabel}. What would you like to do?`;
     this.promptEl.placeholder = props.placeholder;
     if (this.promptEl.value !== props.promptValue) {
       this.promptEl.value = props.promptValue;

@@ -150,6 +150,43 @@ customizationsRouter.get("/", async (request, response) => {
   }
 });
 
+customizationsRouter.delete("/", async (request, response) => {
+  const domain = readRequiredQueryString(request.query.domain, "domain");
+  const path = readRequiredQueryString(request.query.path, "path");
+
+  if (!domain.ok) {
+    response.status(400).json({ ok: false, error: domain.error });
+    return;
+  }
+
+  if (!path.ok) {
+    response.status(400).json({ ok: false, error: path.error });
+    return;
+  }
+
+  try {
+    const repositories = getRepositories();
+    const result = await repositories.customizations.deleteMany({
+      userId: DEMO_USER_ID,
+      domain: domain.value,
+      pathPattern: path.value,
+    });
+
+    console.log(
+      `[mongo] DELETE /api/customizations domain=${domain.value} pathPattern=${path.value} deleted=${result.deletedCount}`,
+    );
+
+    response.json({ ok: true, deletedCount: result.deletedCount ?? 0 });
+  } catch (error) {
+    console.error("[api] DELETE /api/customizations failed:", error);
+    response.status(503).json({
+      ok: false,
+      error: "MongoDB is unavailable",
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 function parseSaveCustomizationBody(
   body: SaveCustomizationBody,
 ):

@@ -21,6 +21,13 @@ button {
 }
 button:hover { filter: brightness(1.08); }
 button.active { background: #334155; }
+.clear-btn {
+  margin-top: 10px;
+  background: transparent;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+.clear-btn:hover { background: rgba(248, 113, 113, 0.12); filter: none; }
 .trace-link {
   display: block;
   margin-top: 12px;

@@ -13,24 +13,8 @@ import { apiRouter } from "./routes/api.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || config.corsOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      // Allow local Chrome extension/demo testing during the hackathon.
-      if (origin.startsWith("chrome-extension://") || origin.startsWith("http://localhost:")) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error(`CORS blocked origin: ${origin}`));
-    },
-  }),
-);
+// Dev/demo-only: allow any origin so the extension works on real sites (LinkedIn, etc.).
+app.use(cors({ origin: true }));
 
 app.use(express.json({ limit: "2mb" }));
 

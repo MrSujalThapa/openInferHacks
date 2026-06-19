@@ -16,11 +16,20 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<T>;
+}
+
 export function getPageContext(): { domain: string; path: string } {
-  const { hostname, pathname } = window.location;
+  const { hostname, pathname, search } = window.location;
   let path = pathname || "/";
   if (path.length > 1 && path.endsWith("/")) {
     path = path.slice(0, -1);
+  }
+  if (search) {
+    path = `${path}${search}`;
   }
   return { domain: hostname, path };
 }
