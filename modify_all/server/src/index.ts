@@ -5,6 +5,7 @@ import { connectMongo } from "./db/mongo.js";
 import { ensureIndexes } from "./db/repositories.js";
 import { customizationsRouter } from "./routes/customizations.js";
 import { healthRouter } from "./routes/health.js";
+import { openInferRouter } from "./routes/openinfer.js";
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/health", healthRouter);
 app.use("/api/customizations", customizationsRouter);
+app.use("/api/openinfer", openInferRouter);
 
 app.use((_request, response) => {
   response.status(404).json({ ok: false, error: "Not found" });
