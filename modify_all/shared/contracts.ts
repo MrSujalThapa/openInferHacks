@@ -38,6 +38,23 @@ export type DomElementSummary = {
   };
 };
 
+export type EditableGroup = {
+  groupId: GroupId;
+  userId: UserId;
+  domain: string;
+  path: string;
+  label?: string;
+  shape: {
+    type: "rectangle" | "lasso";
+    rect: Rect;
+    points?: Point[];
+  };
+  target: TargetSignature;
+  domSummary: DomElementSummary[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AllowedCssProperty =
   | "backgroundColor"
   | "color"
@@ -76,23 +93,6 @@ export type PatchOperation =
       type: "compact";
       targetId: GroupId;
     };
-
-export type EditableGroup = {
-  groupId: GroupId;
-  userId: UserId;
-  domain: string;
-  path: string;
-  label?: string;
-  shape: {
-    type: "rectangle" | "lasso";
-    rect: Rect;
-    points?: Point[];
-  };
-  target: TargetSignature;
-  domSummary: DomElementSummary[];
-  createdAt: string;
-  updatedAt: string;
-};
 
 export type SiteCustomization = {
   customizationId: CustomizationId;
@@ -136,6 +136,7 @@ export type AgentTraceStep = {
 };
 
 export const DEMO_USER_ID: UserId = "demo-user";
+
 export const ALLOWED_CSS_PROPERTIES: AllowedCssProperty[] = [
   "backgroundColor",
   "color",
