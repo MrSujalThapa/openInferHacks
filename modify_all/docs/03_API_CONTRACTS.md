@@ -166,3 +166,40 @@ Adds or updates one concise memory.
 ## GET `/api/agent-runs?limit=10`
 
 Returns latest agent traces for demo/debug UI.
+
+## GET `/api/openinfer/status`
+
+Diagnostic endpoint for Person 2/backend setup. Does not expose secrets.
+
+```json
+{
+  "configured": true,
+  "baseUrl": "https://platform.openinfer.io",
+  "model": "@oi/beta"
+}
+```
+
+## POST `/api/openinfer/test`
+
+Diagnostic endpoint for verifying the OpenInfer client. This is not used by the extension UX.
+
+### Request
+
+```json
+{
+  "prompt": "Reply with a short readiness message."
+}
+```
+
+If `prompt` is omitted, the backend uses a small default JSON-readiness prompt.
+
+### Response
+
+```json
+{
+  "ok": true,
+  "model": "@oi/beta",
+  "rawEventCount": 5,
+  "text": "{\"ok\":true,\"message\":\"openinfer-ready\"}"
+}
+```
