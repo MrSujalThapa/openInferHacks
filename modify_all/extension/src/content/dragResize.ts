@@ -8,6 +8,8 @@ export type DragResizeState = {
   startY: number;
   startRect: Rect;
   startTranslate: { x: number; y: number };
+  lastTranslate: { x: number; y: number };
+  lastRect: Rect | null;
 };
 
 export function createDragState(): DragResizeState {
@@ -19,6 +21,8 @@ export function createDragState(): DragResizeState {
     startY: 0,
     startRect: { x: 0, y: 0, width: 0, height: 0 },
     startTranslate: { x: 0, y: 0 },
+    lastTranslate: { x: 0, y: 0 },
+    lastRect: null,
   };
 }
 
@@ -28,6 +32,8 @@ export function startDrag(state: DragResizeState, e: PointerEvent, rect: Rect, t
   state.startY = e.clientY;
   state.startRect = { ...rect };
   state.startTranslate = { ...translate };
+  state.lastTranslate = { ...translate };
+  state.lastRect = { ...rect };
 }
 
 export function startResize(
@@ -41,6 +47,7 @@ export function startResize(
   state.startX = e.clientX;
   state.startY = e.clientY;
   state.startRect = { ...rect };
+  state.lastRect = { ...rect };
 }
 
 export function updateDrag(
@@ -57,6 +64,8 @@ export function updateDrag(
     width: state.startRect.width,
     height: state.startRect.height,
   };
+  state.lastTranslate = { x: translateX, y: translateY };
+  state.lastRect = rect;
   return { translateX, translateY, rect };
 }
 
@@ -76,7 +85,9 @@ export function updateResize(state: DragResizeState, e: PointerEvent): Rect {
     y = state.startRect.y + (state.startRect.height - height);
   }
 
-  return { x, y, width, height };
+  const rect = { x, y, width, height };
+  state.lastRect = rect;
+  return rect;
 }
 
 export function endDragResize(state: DragResizeState): void {

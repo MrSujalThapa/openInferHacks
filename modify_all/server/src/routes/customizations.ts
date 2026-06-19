@@ -25,6 +25,7 @@ const ALLOWED_CSS_PROPERTIES: ReadonlySet<AllowedCssProperty> = new Set([
 type SaveCustomizationBody = {
   domain?: unknown;
   pathPattern?: unknown;
+  path?: unknown;
   groupId?: unknown;
   target?: unknown;
   operations?: unknown;
@@ -34,9 +35,17 @@ type SaveCustomizationBody = {
 export const customizationsRouter = Router();
 
 customizationsRouter.post("/", async (request, response) => {
+  console.log("[api] POST /api/customizations", {
+    domain: request.body?.domain,
+    pathPattern: request.body?.pathPattern ?? request.body?.path,
+    groupId: request.body?.groupId,
+    operationCount: Array.isArray(request.body?.operations) ? request.body.operations.length : 0,
+  });
+
   const parsed = parseSaveCustomizationBody(request.body);
 
   if (!parsed.ok) {
+    console.warn("[api] POST /api/customizations rejected:", parsed.error);
     response.status(400).json({ ok: false, error: parsed.error });
     return;
   }
@@ -56,7 +65,7 @@ customizationsRouter.post("/", async (request, response) => {
         ? existing.customizationId
         : `custom_${randomUUID()}`;
 
-    await repositories.customizations.updateOne(
+    const result = await repositories.customizations.updateOne(
       {
         userId: DEMO_USER_ID,
         domain: parsed.value.domain,
@@ -82,8 +91,13 @@ customizationsRouter.post("/", async (request, response) => {
       { upsert: true },
     );
 
+    console.log(
+      `[mongo] POST /api/customizations saved customizationId=${customizationId} matched=${result.matchedCount} modified=${result.modifiedCount} upserted=${result.upsertedCount ?? 0}`,
+    );
+
     response.json({ ok: true, customizationId });
   } catch (error) {
+    console.error("[api] POST /api/customizations failed:", error);
     response.status(503).json({
       ok: false,
       error: "MongoDB is unavailable",
@@ -148,7 +162,7 @@ function parseSaveCustomizationBody(
   const domain = readRequiredString(body.domain, "domain");
   if (!domain.ok) return domain;
 
-  const pathPattern = readRequiredString(body.pathPattern, "pathPattern");
+  const pathPattern = readRequiredString(body.pathPattern ?? body.path, "pathPattern");
   if (!pathPattern.ok) return pathPattern;
 
   const groupId = readRequiredString(body.groupId, "groupId");
@@ -166,6 +180,10 @@ function parseSaveCustomizationBody(
     return { ok: false, error: "operations contains an invalid patch operation" };
   }
 
+  const operations = body.operations.map((operation) =>
+    normalizePatchOperation(operation, groupId.value),
+  );
+
   return {
     ok: true,
     value: {
@@ -173,10 +191,15 @@ function parseSaveCustomizationBody(
       pathPattern: pathPattern.value,
       groupId: groupId.value,
       target: body.target,
-      operations: body.operations,
+      operations,
       enabled: typeof body.enabled === "boolean" ? body.enabled : true,
     },
   };
+}
+
+function normalizePatchOperation(raw: unknown, groupId: string): PatchOperation {
+  const op = raw as Record<string, unknown>;
+  return { ...op, targetId: groupId } as PatchOperation;
 }
 
 function readRequiredQueryString(
@@ -215,13 +238,12 @@ function isTargetSignature(value: unknown): value is TargetSignature {
 }
 
 function isPatchOperationLike(value: unknown, groupId: string): value is PatchOperation {
-  if (!isRecord(value) || typeof value.type !== "string" || typeof value.targetId !== "string") {
+  if (!isRecord(value) || typeof value.type !== "string") {
     return false;
   }
 
-  if (value.targetId !== groupId) {
-    return false;
-  }
+  const targetId =
+    typeof value.targetId === "string" && value.targetId.length > 0 ? value.targetId : groupId;
 
   if (value.type === "hide" || value.type === "compact") {
     return true;
